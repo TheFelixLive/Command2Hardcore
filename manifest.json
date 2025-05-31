@@ -1,0 +1,35 @@
+{
+  "format_version": 2,
+  "header": {
+      "description": "Normally, you can't execute commands in hardcore mode. Not even if you explicitly want to! That's where this add-on comes in, allowing you to execute commands comfortably via a small detour!",
+      "name": "Command2Hardcore",
+      "uuid": "a9bdf889-7080-419c-b23c-adfc8704c4c1",
+      "version": [ 1, 0, 0],
+      "min_engine_version": [1, 21, 40]
+  },
+  "modules": [
+    {
+        "description": "",
+        "type": "data",
+        "uuid": "e11ee04d-d3f8-4b79-8ac0-40d93a0881f0",
+        "version": [1, 0, 0]
+    },
+    {
+      "description": "",
+        "type": "script",
+        "uuid": "7614c31a-7188-47ed-bc87-b18fc55ef8a5",
+        "version": [1, 0, 0],
+        "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name":"@minecraft/server",
+      "version":"1.15.0"
+    }, 
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "1.3.0"
+    }
+ ]
+}
