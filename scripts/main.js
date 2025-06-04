@@ -3,25 +3,37 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.1.0.1",
-  build: "B001",
+  version: "v.1.0.2",
+  build: "B002",
   release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1748708703,
+  unix: 1749057570,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
-      "The Timer V can now be used thanks to the handshake protocol"
+      "Added a block list for commands"
     ],
     // general_changes
     general_changes: [
-      "Links have been updated"
     ],
     // bug_fixes
     bug_fixes: [
+      "Fixed \"About version\" in the menu"
     ]
   }
 }
+
+
+let block_command_list = [
+  /* Legend:
+  rating = 0 - no warning
+  rating = 1 - behaves strangely
+  rating = 2 - bricks the world
+  */
+  {command_prefix: "gamemode", rating: 1},
+  {command_prefix: "gamemode spectator", rating: 2},
+  {command_prefix: "kill", rating: 2},
+]
 
 /*------------------------
   Handshake with timer
@@ -177,7 +189,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
           showForm()
         } else {
           if (response.selection === 0) {
-            save_data[0].update_message_unix = (Math.floor(Date.now() / 1000)) + update_message_period_unix;
+            save_data[0].update_message_unix = (Math.floor(Date.now() / 1000)) + version_info.update_message_period_unix;
             update_save_data(save_data);
           }
         }
@@ -499,12 +511,11 @@ function command_history_menu(player) {
 
 
 
-
 function command_menu(player, command) {
   let form = new ModalFormData();
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-  
+
   const playerNames = ["Server", ...world.getAllPlayers().map(p => p.name)];
   if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
 
@@ -513,39 +524,86 @@ function command_menu(player, command) {
   form.dropdown('Execute by', playerNames, playerNames.indexOf(player.name));
 
   form.show(player).then(response => {
-    if (response.canceled) return -1
+    if (response.canceled) return -1;
     if (!response.formValues[0]) return main_menu(player);
 
     let cmd = response.formValues[0].startsWith("/") ? response.formValues[0] : "/" + response.formValues[0];
-    const byServer = response.formValues[1] == 0;
-    
-    try {
-      let result = byServer ? world.getDimension("overworld").runCommand(cmd) : player.runCommand(cmd);
-      const success = result.successCount > 0;
-      
-      save_data[player_sd_index].command_history.push({
-        command: cmd,
-        successful: success,
-        unix: Math.floor(Date.now() / 1000)
-      });
-      update_save_data(save_data);
+    const byServer = response.formValues[1] === 0;
 
-      player.sendMessage(success ? "Command executed" : "§cCommand didn't execute");
-    } catch (e) {
-      save_data[player_sd_index].command_history.push({
-        command: cmd,
-        successful: false,
-        unix: Math.floor(Date.now() / 1000)
+    let matchedBlock = null;
+    for (const block of block_command_list) {
+      if (cmd.toLowerCase().includes(block.command_prefix.toLowerCase())) {
+        if (!matchedBlock || block.command_prefix.length > matchedBlock.command_prefix.length) {
+          matchedBlock = block;
+        }
+      }
+    }
+
+    if (matchedBlock) {
+      let form = new ActionFormData();
+      let actions = [];
+      form.title("Warning");
+      form.body(
+        matchedBlock.rating === 1
+          ? `The §l/${matchedBlock.command_prefix}§r command behaves differently than expected in §chardcore mode§r.\n\nDo you want to run it anyways?`
+          : matchedBlock.rating === 2
+            ? `The /${matchedBlock.command_prefix}§r command will most likely §4§llose your hardcore world!§r\n\nDo you really want that?`
+            : ""
+      );
+
+      if (matchedBlock.rating > 0) {
+        form.button(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
+        actions.push(() => {
+          return execute_command(player, cmd, byServer, save_data, player_sd_index);
+        });
+      }
+
+      form.button(""); // Cancel
+      actions.push(() => {
+        return command_menu(player, cmd);
       });
-      update_save_data(save_data);
-      command_menu_result_e(player, e.message, cmd);
-      player.sendMessage("§c" + e.message);
+
+      form.show(player).then((response_2) => {
+        if (response_2.selection === undefined) return -1;
+        if (actions[response_2.selection]) actions[response_2.selection]();
+      });
+    } else {
+      execute_command(player, cmd, byServer, save_data, player_sd_index);
     }
   });
 }
 
 
 
+
+function execute_command(player, cmd, byServer, save_data, player_sd_index) {
+  try {
+    let result = byServer
+      ? world.getDimension("overworld").runCommand(cmd)
+      : player.runCommand(cmd);
+
+    const success = result.successCount > 0;
+
+    save_data[player_sd_index].command_history.push({
+      command: cmd,
+      successful: success,
+      unix: Math.floor(Date.now() / 1000)
+    });
+    update_save_data(save_data);
+
+    player.sendMessage(success ? "Command executed" : "§cCommand didn't execute");
+  } catch (e) {
+    save_data[player_sd_index].command_history.push({
+      command: cmd,
+      successful: false,
+      unix: Math.floor(Date.now() / 1000)
+    });
+    update_save_data(save_data);
+
+    command_menu_result_e(player, e.message, cmd);
+    player.sendMessage("§c" + e.message);
+  }
+}
 
 
 function command_menu_result_e(player, message, command) {
@@ -671,7 +729,7 @@ function dictionary_about_version(player) {
   form.title("About")
   form.body(
     "Name: " + version_info.name + "\n" +
-    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
+    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
     "Build date: " + `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})` +
 

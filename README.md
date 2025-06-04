@@ -34,6 +34,7 @@ However, with the permission feature under settings, you can change this for eac
 - A central search
 - A system that recognizes and fixes some syntax misstage
 - Adding support for command blocks
+- A block command list that can be modified
 
 # Installation
 1. **Download** the latest release from [here](https://github.com/TheFelixLive/Command2Hardcore/releases/latest).
