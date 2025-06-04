@@ -3,22 +3,57 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.1.0.0",
+  version: "v.1.0.1",
   build: "B001",
   release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
   unix: 1748708703,
+  update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
+      "The Timer V can now be used thanks to the handshake protocol"
     ],
     // general_changes
     general_changes: [
+      "Links have been updated"
     ],
     // bug_fixes
     bug_fixes: [
     ]
   }
 }
+
+/*------------------------
+  Handshake with timer
+-------------------------*/
+
+let use_timer = false
+
+async function timer_handshake() {
+  await system.waitTicks(1);
+
+  console.log("Com2Hard: Sending handshake!")
+  world.getDimension("overworld").runCommand("scriptevent timerv:api_client_mode")
+
+  await system.waitTicks(1);
+  try {
+    world.scoreboard.removeObjective("timer_handshake");
+    use_timer = true
+    console.log("Com2Hard: Handshake complete!");
+  } catch {
+    console.log("Com2Hard: Handshake timeout!");
+  }
+
+}
+
+timer_handshake()
+
+
+system.afterEvents.scriptEventReceive.subscribe(event=> {
+  if (event.id === "timerv:api_menu_parent") {
+    return main_menu(event.sourceEntity)
+  }
+});
 
 /*------------------------
  Save Data
@@ -112,7 +147,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
   }
 
   if (version_info.release_type !== 2 && save_data[player_sd_index].op) {
-    player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §lgithub.com/TheFelixLive/Timer-Ultimate")
+    player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §lgithub.com/TheFelixLive/Command2Hardcore")
     player.playSound("random.pop")
   }
 
@@ -133,7 +168,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
   if (save_data[player_sd_index].op && (Math.floor(Date.now() / 1000)) > save_data[0].update_message_unix) {
     let form = new ActionFormData();
     form.title("Update time!");
-    form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7github.com/TheFelixLive/Timer-Ultimate");
+    form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7github.com/TheFelixLive/Command2Hardcore");
     form.button("Mute");
 
     const showForm = async () => {
@@ -142,7 +177,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
           showForm()
         } else {
           if (response.selection === 0) {
-            save_data[0].update_message_unix = (Math.floor(Date.now() / 1000)) + 15897600;
+            save_data[0].update_message_unix = (Math.floor(Date.now() / 1000)) + update_message_period_unix;
             update_save_data(save_data);
           }
         }
@@ -360,6 +395,15 @@ function main_menu(player) {
   form.title("Main menu");
   form.body("Select an option!");
 
+
+  // Timer: menu
+  if (use_timer) {
+    form.button("Timer V", "textures/ui/timer");
+    actions.push(() => {
+      player.runCommand("/scriptevent timerv:api_menu")
+    });
+  }
+
   // Button: Commands
 
   if (world.isHardcore) {
@@ -394,7 +438,7 @@ function main_menu(player) {
   }
 
   // Button: Settings
-  form.button("Settings", "textures/ui/automation_glyph_color");
+  form.button(use_timer? "Settings\n(Com2Hard)" : "Settings", "textures/ui/automation_glyph_color");
   actions.push(() => {
     settings_main(player);
   });
@@ -627,7 +671,7 @@ function dictionary_about_version(player) {
   form.title("About")
   form.body(
     "Name: " + version_info.name + "\n" +
-    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (15897600 + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
+    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
     "Build date: " + `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})` +
 
@@ -678,7 +722,7 @@ function dictionary_contact(player, build_date) {
 
   let actions = []
   form.title("Contact")
-  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n\n§l§5Github:§r github.com/TheFelixLive/Timer-Ultimate/issues\n\n§8Curseforge:§r curseforge.com/projects/1259478");
+  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n\n§l§5Github:§r github.com/TheFelixLive/Command2Hardcore/issues\n\n§8Curseforge:§r curseforge.com/projects/1277546");
 
   if (save_data[player_sd_index].op) {
     form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
@@ -1271,8 +1315,6 @@ function close_world() {
   world.sendMessage("Closing World! Auto Save is disabled! Please wait...");
   while (true) {}
 }
-
-
 
 async function update_loop() {
     while (true) {
