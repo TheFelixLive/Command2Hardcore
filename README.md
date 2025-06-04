@@ -5,13 +5,14 @@
 ## About
 Normally, you can't execute commands in hardcore mode. Not even if you explicitly want to! That's where this add-on comes in, allowing you to execute commands comfortably via a small detour!
 
-> [!CAUTION]
-> This addon does not work with [Timer Ultimate or Timer V](https://github.com/TheFelixLive/Timer-Ultimate), as they use the same gesture to open the menu
-
 # Execute commands
 1. Open the menu (by sneaking and jumping at the same time, noding in spectator mode or by interacting with a stick)
 2. Select `Run a new Command`
 3. Enter your Command & Have fun!
+
+> [!NOTE]
+> Commands like `/gamemode` or `/difficulty` will run but don't do anything.
+It's an limitation of Minecraft
 
 ## Intuitiveness
 If you have a syntax misstage in your command, the addon will also display it in a littly ui
