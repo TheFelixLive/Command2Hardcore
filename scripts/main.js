@@ -4,9 +4,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.0.0",
-  build: "B005",
+  build: "B006",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749126247,
+  unix: 1749127249,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
@@ -135,6 +135,7 @@ function create_player_save_data (playerId, playerName) {
           id: playerId,
           name: playerName,
           op: shout_be_op,
+          quick_run: false,
           command_history: [],
           last_unix: undefined
       });
@@ -439,7 +440,11 @@ function main_menu(player) {
       
       form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
       actions.push(() => {
-        command_menu(player, c.command);
+        if (save_data[player_sd_index].quick_run) {
+          execute_command(player, c.command, false)
+        } else {
+          command_menu(player, c.command);
+        }
       });
     });
 
@@ -492,7 +497,11 @@ function command_history_menu(player) {
     
     form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
     actions.push(() => {
-      command_menu(player, c.command);
+      if (save_data[player_sd_index].quick_run) {
+        execute_command(player, c.command, false)
+      } else {
+        command_menu(player, c.command);
+      }
     });
   });
 
@@ -579,7 +588,9 @@ function command_menu(player, command) {
 
 
 
-function execute_command(player, cmd, byServer, save_data, player_sd_index) {
+function execute_command(player, cmd, byServer) {
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
   try {
     let result = byServer
       ? world.getDimension("overworld").runCommand(cmd)
@@ -655,9 +666,6 @@ function highlightErrorInCommand(command, errorSnippet) {
 }
 
 
-// execute as @s at @z run function timer/ui/menu/new
-
-
 
 /*------------------------
  Settings
@@ -690,7 +698,20 @@ function settings_main(player) {
     });  
   }
 
-  // Button 2: Debug
+
+  // Button 2: Permission
+  form.button("Quick run\n" + (save_data[player_sd_index].quick_run ? "§aon" : "§coff"), (save_data[player_sd_index].quick_run ? "textures/ui/sprint_pressed" : "textures/ui/sprint"));
+  actions.push(() => {
+    if (!save_data[player_sd_index].quick_run) {
+      save_data[player_sd_index].quick_run = true;
+    } else {
+      save_data[player_sd_index].quick_run = false;
+    }
+    update_save_data(save_data);
+    settings_main(player);
+  });
+
+  // Button 3: Debug
   if (version_info.release_type == 0 && save_data[player_sd_index].op) {
     form.button("Debug\n", "textures/ui/ui_debug_glyph_color");
     actions.push(() => {
@@ -698,7 +719,7 @@ function settings_main(player) {
     });
   }
 
-  // Button 3: Dictionary
+  // Button 4: Dictionary
   form.button("About\n", "textures/ui/infobulb");
   actions.push(() => {
     dictionary_about_version(player)
