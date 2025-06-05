@@ -33,7 +33,7 @@ However, with the permission feature under settings, you can change this for eac
 # Planned features
 - A central search
 - A system that recognizes and fixes some syntax misstage
-- Adding support for command blocks
+- Adding a nice UI for commands
 - A block command list that can be modified
 
 # Installation

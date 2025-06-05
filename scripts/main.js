@@ -1,22 +1,25 @@
-import { world, system } from "@minecraft/server";
+import { world, system, EntityTypes } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.0.0",
-  build: "B006",
+  build: "B009",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749127249,
+  unix: 1749133904,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
+      "Added Quick run"
     ],
     // general_changes
     general_changes: [
+      "Duplicate commands are no longer added to the history"
     ],
     // bug_fixes
     bug_fixes: [
+      "The update message is now displayed correctly"
     ]
   }
 }
@@ -237,6 +240,21 @@ world.beforeEvents.itemUse.subscribe(event => {
 	}
 });
 
+/*
+// There is currently no api to change the command in command block
+world.beforeEvents.playerInteractWithBlock.subscribe(event => {
+  let player = event.player
+  let block = event.block
+  system.run(() => {
+    if (block.type.id == "minecraft:command_block" && event.isFirstEvent) {
+      console.log("Runed!")
+      command_block_menu(player, block)
+    }
+  });
+
+});
+*/
+
 // via. jump gesture
 const gestureCooldowns = new Map();
 
@@ -400,6 +418,33 @@ function convertUnixToDate(unixSeconds, utcOffset) {
 /*------------------------
  Menus
 -------------------------*/
+
+function command_block_menu(player, block) {
+  let form = new ModalFormData();
+  let actions = [];
+
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Command block");
+  form.textField('Command', 'e.g. /say hallo world!');
+  form.dropdown('Block Type:', ["Impulse", "Repeat", "Chain"]);
+  form.toggle("Conditional", false);
+  form.toggle("Needs Redstone", false);
+
+  form.toggle("Execute on First Tick", true);
+  form.slider("Delay in Ticks", 0, 1000, 1, 0);
+
+  form.show(player).then((response) => {
+    if (response.selection === undefined) {
+      return -1;
+    }
+
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
 
 function main_menu(player) {
   let form = new ActionFormData();
@@ -591,6 +636,7 @@ function command_menu(player, command) {
 function execute_command(player, cmd, byServer) {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
   try {
     let result = byServer
       ? world.getDimension("overworld").runCommand(cmd)
@@ -598,26 +644,42 @@ function execute_command(player, cmd, byServer) {
 
     const success = result.successCount > 0;
 
-    save_data[player_sd_index].command_history.push({
-      command: cmd,
-      successful: success,
-      unix: Math.floor(Date.now() / 1000)
-    });
-    update_save_data(save_data);
+    let existingCommand = save_data[player_sd_index].command_history.find(entry => entry.command === cmd);
 
+    if (existingCommand) {
+      existingCommand.successful = success;
+      existingCommand.unix = Math.floor(Date.now() / 1000);
+    } else {
+      save_data[player_sd_index].command_history.push({
+        command: cmd,
+        successful: success,
+        unix: Math.floor(Date.now() / 1000)
+      });
+    }
+
+    update_save_data(save_data);
     player.sendMessage(success ? "Command executed" : "§cCommand didn't execute");
-  } catch (e) {
-    save_data[player_sd_index].command_history.push({
-      command: cmd,
-      successful: false,
-      unix: Math.floor(Date.now() / 1000)
-    });
-    update_save_data(save_data);
 
+  } catch (e) {
+    let existingCommand = save_data[player_sd_index].command_history.find(entry => entry.command === cmd);
+
+    if (existingCommand) {
+      existingCommand.successful = false;
+      existingCommand.unix = Math.floor(Date.now() / 1000);
+    } else {
+      save_data[player_sd_index].command_history.push({
+        command: cmd,
+        successful: false,
+        unix: Math.floor(Date.now() / 1000)
+      });
+    }
+
+    update_save_data(save_data);
     command_menu_result_e(player, e.message, cmd);
     player.sendMessage("§c" + e.message);
   }
 }
+
 
 
 function command_menu_result_e(player, message, command) {
