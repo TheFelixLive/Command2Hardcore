@@ -3,26 +3,23 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.1.0.2",
-  build: "B002",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749057570,
+  version: "v.2.0.0",
+  build: "B005",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1749126247,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
-      "Added a block list for commands"
     ],
     // general_changes
     general_changes: [
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed \"About version\" in the menu"
     ]
   }
 }
-
 
 let block_command_list = [
   /* Legend:
@@ -44,16 +41,22 @@ let use_timer = false
 async function timer_handshake() {
   await system.waitTicks(1);
 
-  console.log("Com2Hard: Sending handshake!")
+  if (version_info.release_type == 0) {
+    console.log("Com2Hard: Sending handshake!")
+  }
   world.getDimension("overworld").runCommand("scriptevent timerv:api_client_mode")
 
   await system.waitTicks(1);
   try {
     world.scoreboard.removeObjective("timer_handshake");
     use_timer = true
-    console.log("Com2Hard: Handshake complete!");
+    if (version_info.release_type == 0) {
+      console.log("Com2Hard: Handshake complete!");
+    }
   } catch {
-    console.log("Com2Hard: Handshake timeout!");
+    if (version_info.release_type == 0) {
+      console.log("Com2Hard: Handshake timeout!");
+    }
   }
 
 }
@@ -74,9 +77,9 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
 // Creates Save Data if not present
 let save_data = load_save_data()  
 if (!save_data) {
-    save_data = [{debug: version_info.release_type == 0? true : false}]
+    save_data = [{update_message_unix: (version_info.unix + version_info.update_message_period_unix)}]
     
-    if (save_data.debug) {
+    if (version_info.release_type == 0) {
       console.log("Creating save_data...");
     }
 
@@ -124,7 +127,7 @@ function create_player_save_data (playerId, playerName) {
           }
       }
 
-      if (save_data[0].debug) {
+      if (version_info.release_type == 0) {
         console.log(`Player ${playerName} (${playerId}) added with op=${shout_be_op}!`);
       }
 
@@ -688,7 +691,7 @@ function settings_main(player) {
   }
 
   // Button 2: Debug
-  if (save_data[0].debug && save_data[player_sd_index].op) {
+  if (version_info.release_type == 0 && save_data[player_sd_index].op) {
     form.button("Debug\n", "textures/ui/ui_debug_glyph_color");
     actions.push(() => {
       debug_main(player);
@@ -1168,7 +1171,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
   body_text += "Name: " + selected_save_data.name + " (id: " + selected_save_data.id + ")\n";
 
   if (selected_player) {
-      if (save_data[0].debug) {
+      if (version_info.release_type == 0) {
           let memory_text = "";
           switch (selected_player.clientSystemInfo.memoryTier) {
               case 0:
