@@ -11,7 +11,7 @@ Normally, you can't execute commands in hardcore mode. Not even if you explicitl
 3. Enter your Command & Have fun!
 
 > [!NOTE]
-> Commands like `/gamemode` or `/difficulty` will run but don't do anything.
+> Commands like `/gamemode` will run but don't do anything.
 It's an limitation of Minecraft
 
 ## Intuitiveness

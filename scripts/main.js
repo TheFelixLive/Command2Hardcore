@@ -1,20 +1,22 @@
-import { world, system, EntityTypes } from "@minecraft/server";
+import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.2.0.0",
-  build: "B009",
+  version: "v.1.1.0",
+  build: "B010",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749133904,
+  unix: 1749579069,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
-      "Added Quick run"
+      "Added a gesture menu (as suggested by Luiz Eduardo)",
+      "Added Quick run",
     ],
     // general_changes
     general_changes: [
+      "Added emotes as a possible gesture",
       "Duplicate commands are no longer added to the history"
     ],
     // bug_fixes
@@ -23,6 +25,8 @@ const version_info = {
     ]
   }
 }
+
+console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
 
 let block_command_list = [
   /* Legend:
@@ -44,22 +48,16 @@ let use_timer = false
 async function timer_handshake() {
   await system.waitTicks(1);
 
-  if (version_info.release_type == 0) {
-    console.log("Com2Hard: Sending handshake!")
-  }
+  print("Sending handshake!")
   world.getDimension("overworld").runCommand("scriptevent timerv:api_client_mode")
 
   await system.waitTicks(1);
   try {
     world.scoreboard.removeObjective("timer_handshake");
     use_timer = true
-    if (version_info.release_type == 0) {
-      console.log("Com2Hard: Handshake complete!");
-    }
+    print("Com2Hard: Handshake complete!");
   } catch {
-    if (version_info.release_type == 0) {
-      console.log("Com2Hard: Handshake timeout!");
-    }
+    print("Handshake timeout!");
   }
 
 }
@@ -77,17 +75,51 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
  Save Data
 -------------------------*/
 
-// Creates Save Data if not present
-let save_data = load_save_data()  
+
+// Creates or Updates Save Data if not present
+let save_data = load_save_data();
+
+const default_save_data_structure = {update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
+
 if (!save_data) {
-    save_data = [{update_message_unix: (version_info.unix + version_info.update_message_period_unix)}]
-    
-    if (version_info.release_type == 0) {
-      console.log("Creating save_data...");
+    save_data = [default_save_data_structure];
+    print("Creating save_data...");
+} else {
+    let data_entry = save_data[0];
+    let changes_made = false;
+
+    function merge_defaults(target, defaults) {
+        for (const key in defaults) {
+            if (defaults.hasOwnProperty(key)) {
+                if (!target.hasOwnProperty(key)) {
+                    target[key] = defaults[key];
+                    changes_made = true;
+                } else if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key])) {
+                    if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+                        target[key] = defaults[key];
+                        changes_made = true;
+                    } else {
+                        merge_defaults(target[key], defaults[key]);
+                    }
+                }
+            }
+        }
     }
 
-    update_save_data(save_data)
+    merge_defaults(data_entry, default_save_data_structure);
+    if (!Array.isArray(save_data) || save_data.length === 0) {
+        save_data = [data_entry];
+        changes_made = true;
+    } else {
+        save_data[0] = data_entry;
+    }
+
+    if (changes_made) {
+        print("Missing save_data attributes found and added.");
+    }
 }
+
+update_save_data(save_data);
 
 
 // Load & Save Save data
@@ -116,37 +148,74 @@ function delete_player_save_data(player) {
 
 
 // Add player if not present
-function create_player_save_data (playerId, playerName) {
+function create_player_save_data(playerId, playerName, modifier) {
   let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
 
-  if (save_data[player_sd_index] == undefined) {
-      let shout_be_op = true;
-  
+  // Define the default structure for a new player's save data
+  const default_player_save_data_structure = (is_op_initial) => ({
+      id: playerId,
+      name: playerName,
+      op: is_op_initial, // This will be determined when the player is first added
+      last_unix: Math.floor(Date.now() / 1000),
+      gesture: { emote: false, sneak: true, nod: true, stick: true },
+      command_history: [],
+  });
+
+  let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
+  let player_data;
+
+  // Helper function to recursively merge default values
+  const merge_defaults = (target, defaults) => {
+      for (const key in defaults) {
+          if (defaults.hasOwnProperty(key)) {
+              if (!target.hasOwnProperty(key)) {
+                  // Key is missing, add it with default value
+                  target[key] = defaults[key];
+              } else if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key])) {
+                  // If the default value is an object, recurse into it
+                  if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+                      // If the existing value is not an object or is null/array, replace it with the default structure
+                      target[key] = defaults[key];
+                      changes_made = true;
+                  } else {
+                      merge_defaults(target[key], defaults[key]);
+                  }
+              }
+          }
+      }
+  };
+
+  if (player_sd_index === -1) {
+      // Player does not exist, create new entry
+      let should_be_op = true;
+
       for (let entry of save_data) {
           if (entry.op === true) {
-              shout_be_op = false;
+              should_be_op = false;
               break;
           }
       }
 
-      if (version_info.release_type == 0) {
-        console.log(`Player ${playerName} (${playerId}) added with op=${shout_be_op}!`);
+      print(`Player ${playerName} (${playerId}) added with op=${should_be_op}!`);
+
+      player_data = default_player_save_data_structure(should_be_op);
+      save_data.push(player_data);
+  } else {
+      // Player exists, get their data
+      player_data = save_data[player_sd_index];
+
+      // Update player name if it's different
+      if (player_data.name !== playerName) {
+          player_data.name = playerName;
       }
 
-      save_data.push({
-          id: playerId,
-          name: playerName,
-          op: shout_be_op,
-          quick_run: false,
-          command_history: [],
-          last_unix: undefined
-      });
-  } else if (save_data[player_sd_index].name !== playerName) {
-      save_data[player_sd_index].name = playerName;
+      const dynamic_default_structure = default_player_save_data_structure(player_data.op);
+      merge_defaults(player_data, dynamic_default_structure);
+
   }
 
   update_save_data(save_data);
+  print(`Save data for player ${playerName} updated.`);
 }
 
 world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
@@ -240,46 +309,85 @@ world.beforeEvents.itemUse.subscribe(event => {
 	}
 });
 
-/*
-// There is currently no api to change the command in command block
-world.beforeEvents.playerInteractWithBlock.subscribe(event => {
-  let player = event.player
-  let block = event.block
-  system.run(() => {
-    if (block.type.id == "minecraft:command_block" && event.isFirstEvent) {
-      console.log("Runed!")
-      command_block_menu(player, block)
-    }
-  });
-
-});
-*/
 
 // via. jump gesture
-const gestureCooldowns = new Map();
+const gestureCooldowns_jump = new Map();
+const gestureState_reset = new Map(); // Speichert, ob Sneak+Jump zurückgesetzt wurden
 
 async function gesture_jump() {
   const now = Date.now();
 
   for (const player of world.getAllPlayers()) {
-    const lastUsed = gestureCooldowns.get(player.id) || 0;
+    const lastUsed = gestureCooldowns_jump.get(player.id) || 0;
+    const state = gestureState_reset.get(player.id) || { reset: true }; // true = darf wieder ausgelöst werden
 
-    if (player.isSneaking && player.isJumping) {
-      if (now - lastUsed >= 100) { // 2 Sekunden Cooldown
-        let save_data = load_save_data();
-        let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+    const isSneaking = player.isSneaking;
+    const isJumping = player.isJumping;
 
-        if (save_data[player_sd_index].op) {
+    // Wenn beide false sind, erlauben wir wieder eine Auslösung beim nächsten Mal
+    if (!isSneaking && !isJumping) {
+      gestureState_reset.set(player.id, { reset: true });
+    }
+
+    // Wenn beide true sind UND vorher ein Reset war UND Cooldown abgelaufen
+    if (isSneaking && isJumping && state.reset && (now - lastUsed >= 100)) {
+      const save_data = load_save_data();
+      const idx = save_data.findIndex(e => e.id === player.id);
+      if (save_data[idx].gesture.sneak) {
+        if (save_data[idx].op) {
           main_menu(player)
         } else {
           player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
         }
-        gestureCooldowns.set(player.id, now);
-        await system.waitTicks(10)
       }
+
+      gestureCooldowns_jump.set(player.id, now);
+      gestureState_reset.set(player.id, { reset: false }); // Warten bis beide wieder false sind
+      await system.waitTicks(10);
     }
   }
 }
+
+
+
+
+// via. emote gesture
+const gestureCooldowns_emote = new Map();
+const gestureState_reset_emote = new Map(); // Speichert, ob Emote zurückgesetzt wurde
+
+async function gesture_emote() {
+  const now = Date.now();
+
+  for (const player of world.getAllPlayers()) {
+    const lastUsed = gestureCooldowns_emote.get(player.id) || 0;
+    const state = gestureState_reset_emote.get(player.id) || { reset: true };
+
+    const isEmoting = player.isEmoting;
+
+    // Wenn Emoting zwischendurch false ist → Reset erlauben
+    if (!isEmoting) {
+      gestureState_reset_emote.set(player.id, { reset: true });
+    }
+
+    // Wenn Emoting aktiv ist, Reset gesetzt ist und Cooldown abgelaufen ist → Menü öffnen
+    if (isEmoting && state.reset && (now - lastUsed >= 100)) {
+      const save_data = load_save_data();
+      const idx = save_data.findIndex(e => e.id === player.id);
+      if (save_data[idx].gesture.emote) {
+        if (save_data[idx].op) {
+          main_menu(player)
+        } else {
+          player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
+        }
+      }
+
+      gestureCooldowns_emote.set(player.id, now);
+      gestureState_reset_emote.set(player.id, { reset: false }); // Bis zum nächsten Emote-Ende blockieren
+      await system.waitTicks(10);
+    }
+  }
+}
+
 
 
 
@@ -308,10 +416,12 @@ async function gesture_nod() {
       let save_data = load_save_data();
       let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-      if (save_data[player_sd_index].op) {
-        main_menu(player)
-      } else {
-        player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
+      if (save_data[player_sd_index].gesture.nod) {
+        if (save_data[player_sd_index].op) {
+          main_menu(player)
+        } else {
+          player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
+        }
       }
 
       state = "idle";
@@ -332,6 +442,12 @@ async function gesture_nod() {
 /*------------------------
  general helper functions
 -------------------------*/
+
+function print(input) {
+  if (version_info.release_type === 0) {
+    console.log(version_info.name + " - " + input)
+  }
+}
 
 function getRelativeTime(diff) {
   let seconds = diff;
@@ -398,7 +514,7 @@ function convertUnixToDate(unixSeconds, utcOffset) {
   const hours = String(localDate.getUTCHours()).padStart(2, '0');
   const minutes = String(localDate.getUTCMinutes()).padStart(2, '0');
   const seconds = String(localDate.getUTCSeconds()).padStart(2, '0');
-  
+
   return {
     day: day,
     month: month,
@@ -418,33 +534,6 @@ function convertUnixToDate(unixSeconds, utcOffset) {
 /*------------------------
  Menus
 -------------------------*/
-
-function command_block_menu(player, block) {
-  let form = new ModalFormData();
-  let actions = [];
-
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
-  form.title("Command block");
-  form.textField('Command', 'e.g. /say hallo world!');
-  form.dropdown('Block Type:', ["Impulse", "Repeat", "Chain"]);
-  form.toggle("Conditional", false);
-  form.toggle("Needs Redstone", false);
-
-  form.toggle("Execute on First Tick", true);
-  form.slider("Delay in Ticks", 0, 1000, 1, 0);
-
-  form.show(player).then((response) => {
-    if (response.selection === undefined) {
-      return -1;
-    }
-
-    if (actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
 
 function main_menu(player) {
   let form = new ActionFormData();
@@ -482,7 +571,7 @@ function main_menu(player) {
       let commandText = c.command.split(" ")[0];  // Only take the part before the first space
       let statusText = c.successful ? "§2ran§r" : "§cfailed§r";
       let relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - c.unix);
-      
+
       form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
       actions.push(() => {
         if (save_data[player_sd_index].quick_run) {
@@ -503,7 +592,7 @@ function main_menu(player) {
   }
 
   // Button: Settings
-  form.button(use_timer? "Settings\n(Com2Hard)" : "Settings", "textures/ui/automation_glyph_color");
+  form.button(use_timer? "Settings\n(Com2Hard)" : "Settings", use_timer? "textures/ui/debug_glyph_color" : "textures/ui/automation_glyph_color");
   actions.push(() => {
     settings_main(player);
   });
@@ -539,7 +628,7 @@ function command_history_menu(player) {
     let commandText = c.command.split(" ")[0];  // Only take the part before the first space
     let statusText = c.successful ? "§2ran§r" : "§cfailed§r";
     let relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - c.unix);
-    
+
     form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
     actions.push(() => {
       if (save_data[player_sd_index].quick_run) {
@@ -757,7 +846,7 @@ function settings_main(player) {
     })(), "textures/ui/op");
     actions.push(() => {
       settings_rights_main(player, true)
-    });  
+    });
   }
 
 
@@ -771,6 +860,11 @@ function settings_main(player) {
     }
     update_save_data(save_data);
     settings_main(player);
+  });
+
+  form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+  actions.push(() => {
+    settings_gestures(player)
   });
 
   // Button 3: Debug
@@ -801,6 +895,86 @@ function settings_main(player) {
     if (response.selection !== undefined && actions[response.selection]) {
       actions[response.selection]();
     }
+  });
+}
+
+/*------------------------
+ Gestures
+-------------------------*/
+
+function settings_gestures(player) {
+  const form = new ActionFormData();
+  const save_data = load_save_data();
+  const idx = save_data.findIndex(e => e.id === player.id);
+  const playerGestures = save_data[idx].gesture;
+  let actions = [];
+
+  const configured_gestures = {
+    emote:    ["su","a","c"],
+    sneak:    ["su","a","c"],
+    nod:      ["sp"],
+    stick:    ["su","a","c"]
+  };
+
+  form.title("Gestures");
+  form.body("Choose your own configuration of how the menu should open!");
+
+  const available = Object.keys(configured_gestures);
+
+  // Hilfsfunktion für Großschreibung
+  function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  // Zähle für jeden Modus (su, a, c, sp) wie viele Gesten aktiv sind
+  const modeCounts = {
+    su: 0, a: 0, c: 0, sp: 0
+  };
+
+  available.forEach(gesture => {
+    if (playerGestures[gesture]) {
+      configured_gestures[gesture].forEach(mode => {
+        modeCounts[mode]++;
+      });
+    }
+  });
+
+  available.forEach(gesture => {
+    const isOn = playerGestures[gesture];
+    let label = `${capitalize(gesture)}\n${isOn ? "§aon" : "§coff"}`;
+    let icon = isOn ? "textures/ui/toggle_on" : "textures/ui/toggle_off";
+    let alwaysActive = false;
+
+    // Wenn diese Geste aktiv ist und in einem Modus die einzige aktive Geste ist → restricted
+    const restricted = isOn && configured_gestures[gesture].some(mode => modeCounts[mode] === 1);
+    if (restricted) {
+      label = `${capitalize(gesture)}\n§orestricted`;
+      icon = "textures/ui/hammer_l_disabled";
+      alwaysActive = true;
+    }
+
+    form.button(label, icon);
+
+    actions.push(() => {
+      if (!alwaysActive) {
+        playerGestures[gesture] = !playerGestures[gesture];
+        update_save_data(save_data);
+      }
+      settings_gestures(player);
+    });
+  });
+
+  form.button("");
+  actions.push(() => {
+    settings_main(player);
+  });
+
+  form.show(player).then(response => {
+    if (response.selection === undefined) {
+      return -1
+    }
+    const sel = response.selection;
+    if (typeof actions[sel] === "function") actions[sel]();
   });
 }
 
@@ -1173,9 +1347,9 @@ function settings_rights_main(player, came_from_settings) {
 
   const players = world.getAllPlayers();
   const playerIds = players.map(player => player.id);
-  
+
   let newList = save_data.slice(1);
-  
+
   newList.sort((a, b) => {
     const now = Math.floor(Date.now() / 1000);
 
@@ -1203,7 +1377,7 @@ function settings_rights_main(player, came_from_settings) {
     return aLastSeen - bLastSeen;
   });
 
-  
+
   newList.forEach(entry => {
     const isOnline = playerIds.includes(entry.id);
     let displayName = entry.name;
@@ -1230,7 +1404,7 @@ function settings_rights_main(player, came_from_settings) {
       return settings_main(player);
     }
   }
-  
+
 
   form.show(player).then((response) => {
     if (response.selection == undefined ) {
@@ -1311,7 +1485,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
   if (selected_save_data.id !== viewing_player.id) {
     form.title("Edit "+ selected_save_data.name +"'s permission");
     if (selected_save_data.op) {
-      
+
       form.button("§cMake deop");
       actions.push(() => {
         let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
@@ -1348,12 +1522,12 @@ function settings_rights_data(viewing_player, selected_save_data) {
   } else {
     form.title("Edit your permission");
   }
-  
+
   form.button("Manage save data");
   actions.push(() => {
     settings_rights_manage_sd(viewing_player, selected_save_data);
   });
-  
+
   form.button("");
   actions.push(() => {
     settings_rights_main(viewing_player, false);
@@ -1462,11 +1636,11 @@ function close_world() {
 
 async function update_loop() {
     while (true) {
-      let save_data = load_save_data();
       gesture_nod()
       gesture_jump()
+      gesture_emote()
 
-      
+
 
 
       await system.waitTicks(1);
