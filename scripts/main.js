@@ -1,27 +1,24 @@
-import { world, system } from "@minecraft/server";
+import { system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
+
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.1.1.0",
-  build: "B010",
-  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749579069,
+  version: "v.1.1.1",
+  build: "B011",
+  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1749736811,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
-      "Added a gesture menu (as suggested by Luiz Eduardo)",
-      "Added Quick run",
     ],
     // general_changes
     general_changes: [
-      "Added emotes as a possible gesture",
-      "Duplicate commands are no longer added to the history"
     ],
     // bug_fixes
     bug_fixes: [
-      "The update message is now displayed correctly"
+      "Fixed a bug that caused the plugin to crash"
     ]
   }
 }
@@ -77,49 +74,51 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
 
 
 // Creates or Updates Save Data if not present
-let save_data = load_save_data();
+system.run(() => {
+  let save_data = load_save_data();
 
-const default_save_data_structure = {update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
+  const default_save_data_structure = {update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
 
-if (!save_data) {
-    save_data = [default_save_data_structure];
-    print("Creating save_data...");
-} else {
-    let data_entry = save_data[0];
-    let changes_made = false;
+  if (!save_data) {
+      save_data = [default_save_data_structure];
+      print("Creating save_data...");
+  } else {
+      let data_entry = save_data[0];
+      let changes_made = false;
 
-    function merge_defaults(target, defaults) {
-        for (const key in defaults) {
-            if (defaults.hasOwnProperty(key)) {
-                if (!target.hasOwnProperty(key)) {
-                    target[key] = defaults[key];
-                    changes_made = true;
-                } else if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key])) {
-                    if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
-                        target[key] = defaults[key];
-                        changes_made = true;
-                    } else {
-                        merge_defaults(target[key], defaults[key]);
-                    }
-                }
-            }
-        }
-    }
+      function merge_defaults(target, defaults) {
+          for (const key in defaults) {
+              if (defaults.hasOwnProperty(key)) {
+                  if (!target.hasOwnProperty(key)) {
+                      target[key] = defaults[key];
+                      changes_made = true;
+                  } else if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key])) {
+                      if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+                          target[key] = defaults[key];
+                          changes_made = true;
+                      } else {
+                          merge_defaults(target[key], defaults[key]);
+                      }
+                  }
+              }
+          }
+      }
 
-    merge_defaults(data_entry, default_save_data_structure);
-    if (!Array.isArray(save_data) || save_data.length === 0) {
-        save_data = [data_entry];
-        changes_made = true;
-    } else {
-        save_data[0] = data_entry;
-    }
+      merge_defaults(data_entry, default_save_data_structure);
+      if (!Array.isArray(save_data) || save_data.length === 0) {
+          save_data = [data_entry];
+          changes_made = true;
+      } else {
+          save_data[0] = data_entry;
+      }
 
-    if (changes_made) {
-        print("Missing save_data attributes found and added.");
-    }
-}
+      if (changes_made) {
+          print("Missing save_data attributes found and added.");
+      }
+  }
 
-update_save_data(save_data);
+  update_save_data(save_data);
+})
 
 
 // Load & Save Save data
@@ -148,7 +147,7 @@ function delete_player_save_data(player) {
 
 
 // Add player if not present
-function create_player_save_data(playerId, playerName, modifier) {
+function create_player_save_data(playerId, playerName) {
   let save_data = load_save_data();
 
   // Define the default structure for a new player's save data
@@ -285,7 +284,6 @@ world.afterEvents.playerLeave.subscribe(({ playerId, playerName }) => {
     update_save_data(save_data);
   }
 });
-
 
 /*------------------------
  Open the menu
@@ -1640,11 +1638,8 @@ async function update_loop() {
       gesture_jump()
       gesture_emote()
 
-
-
-
       await system.waitTicks(1);
     }
 }
 
-update_loop();
+system.run(() => update_loop())
