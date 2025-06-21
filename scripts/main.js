@@ -4,21 +4,23 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.1.1.1",
-  build: "B011",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1749736811,
+  version: "v.2.0.0",
+  build: "B012",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1750544714,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
+      "Redesign some menus",
+      "Added visual commands (run command via. GUI)"
     ],
     // general_changes
     general_changes: [
+      "Command history is better sorted",
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug that caused the plugin to crash"
     ]
   }
 }
@@ -550,15 +552,27 @@ function main_menu(player) {
     actions.push(() => {
       player.runCommand("/scriptevent timerv:api_menu")
     });
+    form.divider()
+    if (world.isHardcore) form.label("Run commands")
   }
 
   // Button: Commands
 
   if (world.isHardcore) {
-    form.button("Run new command", "textures/ui/chat_send");
+    form.button("Run GUI command §9[NEW]", "textures/ui/controller_glyph_color_switch");
+    actions.push(() => {
+      visual_command(player);
+    });
+
+    form.button("Run chat command", "textures/ui/chat_send");
     actions.push(() => {
       command_menu(player);
     });
+
+    form.divider()
+    if (save_data[player_sd_index].command_history.length !== 0) {
+      form.label("Most recently used commands")
+    }
 
     // Sort the command history by unix timestamp and get the last 4 entries
     let sortedHistory = save_data[player_sd_index].command_history
@@ -587,6 +601,10 @@ function main_menu(player) {
         command_history_menu(player);
       });
     }
+
+    if (save_data[player_sd_index].command_history.length !== 0) {
+      form.divider()
+    }
   }
 
   // Button: Settings
@@ -612,35 +630,112 @@ function command_history_menu(player) {
   let form = new ActionFormData();
   let actions = [];
 
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let saveData = load_save_data();
+  let playerIndex = saveData.findIndex(entry => entry.id === player.id);
 
   form.title("Command History");
-  form.body("Select a commend!");
+  form.body("Select a command!");
 
-  // Sort the command history by unix timestamp and get the last 4 entries
-  let sortedHistory = save_data[player_sd_index].command_history
-    .sort((a, b) => b.unix - a.unix)  // Sort by unix timestamp, descending
+  // Sort and take the most recent 9 entries
+  let sortedHistory = saveData[playerIndex].command_history
+    .sort((a, b) => b.unix - a.unix)
+    .slice(0, 9);
 
-  sortedHistory.forEach(c => {
-    let commandText = c.command.split(" ")[0];  // Only take the part before the first space
-    let statusText = c.successful ? "§2ran§r" : "§cfailed§r";
-    let relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - c.unix);
+  const now = Math.floor(Date.now() / 1000);
 
-    form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
+  // English month names
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  let lastGroup = null;
+
+  sortedHistory.forEach(entry => {
+    const diffSec = now - entry.unix;
+    const date = new Date(entry.unix * 1000);
+    const year = date.getFullYear();
+    const month = date.getMonth();      // 0–11
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+
+    // Determine group and label
+    let group, label;
+    if (diffSec < 3600) {
+      // within the last hour → minute precision
+      const mm = String(minute).padStart(2, '0');
+      label = `${hour}:${mm} o'clock`;
+      group = `minute-${hour}-${minute}`;
+    } else if (diffSec < 24 * 3600) {
+      // within the last 24 hours → hour precision
+      label = `${hour} o'clock`;
+      group = `hour-${hour}`;
+    } else if (diffSec < 2 * 24 * 3600) {
+      label = "Yesterday";
+      group = "yesterday";
+    } else if (diffSec < 7 * 24 * 3600) {
+      label = "Last days";
+      group = "last-days";
+    } else if (diffSec < 14 * 24 * 3600) {
+      label = "Last week";
+      group = "last-week";
+    } else if (year === new Date().getFullYear()) {
+      // this year but older than two weeks → month name
+      label = monthNames[month];
+      group = `month-${month}`;
+    } else {
+      // older → year
+      label = String(year);
+      group = `year-${year}`;
+    }
+
+    // Only insert the label once per group
+    if (group !== lastGroup) {
+      form.label(label);
+      lastGroup = group;
+    }
+
+    // Button with command, status, and relative time
+    const cmdName = entry.command.split(" ")[0];
+    const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
+    const relativeTime = getRelativeTime(diffSec);
+
+    form.button(`${cmdName}\n${statusText} | ${relativeTime} ago`);
     actions.push(() => {
-      if (save_data[player_sd_index].quick_run) {
-        execute_command(player, c.command, false)
+      if (saveData[playerIndex].quick_run) {
+        execute_command(player, entry.command, false);
       } else {
-        command_menu(player, c.command);
+        command_menu(player, entry.command);
       }
     });
   });
 
+  // Back button
   form.button("");
-  actions.push(() => {
-    main_menu(player);
+  actions.push(() => main_menu(player));
+
+  form.show(player).then(response => {
+    if (response.selection === undefined) return -1;
+    if (actions[response.selection]) actions[response.selection]();
   });
+}
+
+
+function visual_command(player) {
+  let form = new ActionFormData();
+  let actions = [];
+
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Visual commands");
+  form.body("Select an command!");
+
+  form.button("Weather", "textures/ui/weather_rain");
+  actions.push(() => visual_command_weather(player));
+
+  form.button("");
+  actions.push(() => main_menu(player));
 
   form.show(player).then((response) => {
     if (response.selection === undefined) {
@@ -651,7 +746,41 @@ function command_history_menu(player) {
       actions[response.selection]();
     }
   });
+
 }
+
+function visual_command_weather(player) {
+  const form = new ActionFormData();
+  const actions = [];
+  const saveData = load_save_data();
+  const idx = saveData.findIndex(e => e.id === player.id);
+  form.title("Visual commands - weather");
+  form.body("What will the weather be like?");
+
+  // Define all weather options in one place
+  [
+    { label: "Sunny (clear)",    icon: "textures/ui/weather_clear",        cmd: "/weather clear"   },
+    { label: "Rain",             icon: "textures/ui/weather_rain",         cmd: "/weather rain"    },
+    { label: "Thunderstorms",    icon: "textures/ui/weather_thunderstorm", cmd: "/weather thunder" }
+  ].forEach(opt => {
+    form.button(opt.label, opt.icon);
+    actions.push(() => saveData[idx].quick_run
+      ? execute_command(player, opt.cmd, false)
+      : command_menu(player, opt.cmd)
+    );
+  });
+
+  // Back button
+  form.button("");
+  actions.push(() => main_menu(player));
+
+  form.show(player).then(resp => {
+    if (resp.selection != null && actions[resp.selection]) {
+      actions[resp.selection]();
+    }
+  });
+}
+
 
 
 
@@ -664,8 +793,8 @@ function command_menu(player, command) {
   if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
 
   form.title("Command");
-  form.textField('Command', 'e.g. /say hallo world!', command);
-  form.dropdown('Execute by', playerNames, playerNames.indexOf(player.name));
+  form.textField('Command', 'e.g. /say hallo world!', {defaultValue: command});
+  form.dropdown('Execute by', playerNames, {defaultValueIndex: playerNames.indexOf(player.name), tooltip: "If you select other players it will run also at that location.\n§7§oNote: The Server doesn't have some properties!"});
 
   form.show(player).then(response => {
     if (response.canceled) return -1;
@@ -1072,31 +1201,37 @@ function dictionary_contact(player, build_date) {
 function dictionary_about_version_changelog(player, build_date) {
   let form = new ActionFormData()
   form.title("Changelog - "+version_info.version)
-  let bodyText = "";
-  if (version_info.changelog.new_features.length > 0) {
-    bodyText += "§l§bNew Features§r\n\n";
-    version_info.changelog.new_features.forEach(feature => {
-      bodyText += `- ${feature}\n\n`;
-    });
+
+  const { new_features, general_changes, bug_fixes } = version_info.changelog;
+  const hasNew     = new_features.length > 0;
+  const hasGeneral = general_changes.length > 0;
+  const hasBug     = bug_fixes.length > 0;
+
+  // New Features
+  if (hasNew) {
+    form.label("§l§bNew Features§r\n\n");
+    new_features.forEach(feature => form.label(`- ${feature}\n\n`));
+    // only draw divider if there's another section after
+    if (hasGeneral || hasBug) form.divider();
   }
 
-  if (version_info.changelog.general_changes.length > 0) {
-    bodyText += "§l§aGeneral Changes§r\n\n";
-    version_info.changelog.general_changes.forEach(change => {
-      bodyText += `- ${change}\n\n`;
-    });
+  // General Changes
+  if (hasGeneral) {
+    form.label("§l§aGeneral Changes§r\n\n");
+    general_changes.forEach(change => form.label(`- ${change}\n\n`));
+    // only draw divider if Bug Fixes follow
+    if (hasBug) form.divider();
   }
 
-  if (version_info.changelog.bug_fixes.length > 0) {
-    bodyText += "§l§cBug fixes§r\n\n";
-    version_info.changelog.bug_fixes.forEach(fix => {
-      bodyText += `- ${fix}\n\n`;
-    });
+  // Bug Fixes
+  if (hasBug) {
+    form.label("§l§cBug Fixes§r\n\n");
+    bug_fixes.forEach(fix => form.label(`- ${fix}\n\n`));
   }
 
-  bodyText += `§7As of ${build_date.day}.${build_date.month}.${build_date.year} (`+ getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix) + " ago)";
 
-  form.body(bodyText);
+  form.label(`§7As of ${build_date.day}.${build_date.month}.${build_date.year} (`+ getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix) + " ago)");
+
   form.button("");
 
   form.show(player).then((response) => {
