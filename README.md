@@ -33,15 +33,13 @@ However, with the permission feature under settings, you can change this for eac
 # Planned features
 - A central search
 - A system that recognizes and fixes some syntax misstage
-- Adding a nice UI for commands
-- A block command list that can be modified
+- A blacklist for command that can be modified
 
 # Installation
 1. **Download** the latest release from [here](https://github.com/TheFelixLive/Command2Hardcore/releases/latest).
-
 2. **Open** the `.mcpack` or `.mcaddon` file with Minecraft.
-3. **Create** a new world OR edit an existing world with: <img src="https://github.com/user-attachments/assets/2def9d21-84ba-4222-92b6-c42bc3ada5bf" width="35"/>
-4. **Navigate to**: <img src="https://github.com/user-attachments/assets/eeaba65d-f9a1-4e2f-9f6b-dc9e4a7f8b04" width="120"/>
-5. **Click on** "Available".
-6. Activate the Addon by using <img src="https://github.com/user-attachments/assets/67678b1f-7e2d-41e9-ac57-3a59bc1414b5" width="35"/> next to it.
+3. **Create** a new world OR **edit** an existing world
+4. **Navigate to**: Behavior packs.
+5. **Click on** "Available"
+6. **Activate** the Addon
 7. `Play` or `Create` your World

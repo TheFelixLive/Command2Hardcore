@@ -1,19 +1,20 @@
-import { system, world } from "@minecraft/server";
+import { system, world, EntityTypes } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.0.0",
-  build: "B012",
+  build: "B013",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1750544714,
+  unix: 1750710071,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
       "Redesign some menus",
-      "Added visual commands (run command via. GUI)"
+      "Added visual commands (run command via. GUI)",
+      "Added UTC settings"
     ],
     // general_changes
     general_changes: [
@@ -21,7 +22,443 @@ const version_info = {
     ],
     // bug_fixes
     bug_fixes: [
+      "Fixed a bug that prevented the menu from opening in spectator mode"
     ]
+  }
+}
+
+const links = [
+  {name: "§l§5Github:§r", link: "github.com/TheFelixLive/Command2Hardcore"},
+  {name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1277546"},
+  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"},
+]
+
+const timezone_list = [
+  {
+    name: "Baker Island Time",
+    utc: -12,
+    short: "BIT",
+    location: ["Baker Island"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Niue Time",
+    utc: -11,
+    short: "NUT",
+    location: ["Niue", "American Samoa"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Hawaii-Aleutian Standard Time",
+    utc: -10,
+    short: "HAST",
+    location: ["Hawaii", "Honolulu"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Marquesas Time",
+    utc: -9.5,
+    short: "MART",
+    location: ["Marquesas Islands"],
+    lang: ["fr_fr", "ty_ty"]
+  },
+  {
+    name: "Alaska Standard Time",
+    utc: -9,
+    short: "AKST",
+    location: ["Anchorage"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Pacific Standard Time",
+    utc: -8,
+    short: "PST",
+    location: ["Los Angeles (Winter)", "Vancouver (Winter)"],
+    lang: ["en_us", "en_ca"]
+  },
+  {
+    name: "Pacific Daylight / Mountain Standard Time",
+    utc: -7,
+    short: "PDT / MST",
+    location: ["Los Angeles (Summer)", "Vancouver (Summer)", "Denver (Winter)", "Phoenix"],
+    lang: ["en_us", "en_ca"]
+  },
+  {
+    name: "Mountain Daylight / Central Standard Time",
+    utc: -6,
+    short: "MDT / CST",
+    location: ["Denver (Summer)", "Chicago (Winter)", "Mexico City (Winter)"],
+    lang: ["en_us", "es_mx"]
+  },
+  {
+    name: "Central Daylight / Eastern Standard Time",
+    utc: -5,
+    short: "CDT / EST",
+    location: ["Chicago (Summer)", "New York (Winter)", "Toronto (Winter)"],
+    lang: ["en_us", "fr_ca", "fr_fr"]
+  },
+  {
+    name: "Atlantic Standard / Eastern Daylight Time",
+    utc: -4,
+    short: "AST / EDT",
+    location: ["Santiago (Winter)", "Caracas (Winter)", "New York (Summer)", "Toronto (Summer)"],
+    lang: ["en_us", "es_cl", "es_ve", "fr_ca"]
+  },
+  {
+    name: "Newfoundland Standard Time",
+    utc: -3.5,
+    short: "NST",
+    location: ["St. John's (Winter)"],
+    lang: ["en_ca"]
+  },
+  {
+    name: "Atlantic Daylight / Argentina Time",
+    utc: -3,
+    short: "ADT / ART",
+    location: ["Santiago (Summer)", "Buenos Aires", "São Paulo"],
+    lang: ["es_cl", "es_ar", "pt_br"]
+  },
+  {
+    name: "Newfoundland Daylight Time",
+    utc: -2.5,
+    short: "NDT",
+    location: ["St. John's (Summer)"],
+    lang: ["en_ca"]
+  },
+  {
+    name: "South Georgia Time",
+    utc: -2,
+    short: "GST",
+    location: ["South Georgia"],
+    lang: ["en_gb"]
+  },
+  {
+    name: "Azores Standard Time",
+    utc: -1,
+    short: "AZOT",
+    location: ["Azores (Winter)"],
+    lang: ["pt_pt"]
+  },
+  {
+    name: "Greenwich Mean Time / Azores Summer Time",
+    utc: 0,
+    short: "GMT / AZOST",
+    location: ["London (Winter)", "Reykjavík", "Azores (Summer)"],
+    lang: ["en_gb", "is_is", "pt_pt"]
+  },
+  {
+    name: "Central European Time / British Summer Time",
+    utc: 1,
+    short: "CET / BST",
+    location: ["Berlin (Winter)", "Paris (Winter)", "Rome (Winter)", "London (Summer)"],
+    lang: [ "de_de", "de_at", "de_ch", "fr_fr", "fr_be", "fr_ch", "it_it", "en_gb"]
+  },
+  {
+    name: "Central European Summer / Eastern European Time",
+    utc: 2,
+    short: "CEST / EET",
+    location: ["Berlin (Summer)", "Paris (Summer)", "Rome (Summer)", "Athens (Winter)", "Cairo (Winter)", "Helsinki (Winter)"],
+    lang: ["de_de", "de_at", "de_ch", "fr_fr", "fr_be", "fr_ch", "it_it", "el_gr", "ar_eg", "ar_sa", "fi_fi", "sv_se"]
+  },
+  {
+    name: "Eastern European Summer / Moscow Time",
+    utc: 3,
+    short: "EEST / MSK",
+    location: ["Athens (Summer)", "Cairo (Summer)", "Moscow", "Istanbul"],
+    lang: ["el_gr", "ar_eg", "ar_sa", "ru_ru", "ru_ua", "tr_tr"]
+  },
+  {
+    name: "Iran Standard Time",
+    utc: 3.5,
+    short: "IRST",
+    location: ["Tehran (Winter)"],
+    lang: ["fa_ir"]
+  },
+  {
+    name: "Iran Daylight Time / Gulf Standard Time",
+    utc: 4,
+    short: "IRDT / GST",
+    location: ["Tehran (Summer)", "Dubai", "Abu Dhabi"],
+    lang: ["fa_ir", "ar_ae", "ar_sa"]
+  },
+  {
+    name: "Afghanistan Time",
+    utc: 4.5,
+    short: "AFT",
+    location: ["Kabul"],
+    lang: ["ps_af", "fa_ir"]
+  },
+  {
+    name: "Pakistan Standard Time",
+    utc: 5,
+    short: "PKT",
+    location: ["Karachi", "Islamabad"],
+    lang: ["en_pk", "ur_pk"]
+  },
+  {
+    name: "India Standard Time",
+    utc: 5.5,
+    short: "IST",
+    location: ["New Delhi", "Mumbai", "Colombo"],
+    lang: ["en_in", "hi_in", "si_lk", "ta_in", "ta_lk"]
+  },
+  {
+    name: "Nepal Time",
+    utc: 5.75,
+    short: "NPT",
+    location: ["Kathmandu"],
+    lang: ["ne_np"]
+  },
+  {
+    name: "Bangladesh Time",
+    utc: 6,
+    short: "BST",
+    location: ["Dhaka"],
+    lang: ["bn_bd"]
+  },
+  {
+    name: "Cocos Islands Time",
+    utc: 6.5,
+    short: "CCT",
+    location: ["Cocos Islands"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Indochina Time",
+    utc: 7,
+    short: "ICT",
+    location: ["Bangkok", "Hanoi", "Jakarta"],
+    lang: ["th_th", "vi_vn", "id_id"]
+  },
+  {
+    name: "China Standard Time",
+    utc: 8,
+    short: "CST",
+    location: ["Beijing", "Shanghai", "Singapore"],
+    lang: ["zh_cn", "en_sg", "ms_sg", "ta_sg"]
+  },
+  {
+    name: "Australian Central Western Time",
+    utc: 8.75,
+    short: "ACWST",
+    location: ["Eucla"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Japan Standard Time",
+    utc: 9,
+    short: "JST",
+    location: ["Tokyo", "Seoul"],
+    lang: ["ja_jp", "ko_kr"]
+  },
+  {
+    name: "Australian Central Standard Time",
+    utc: 9.5,
+    short: "ACST",
+    location: ["Adelaide", "Darwin"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Australian Eastern Standard Time",
+    utc: 10,
+    short: "AEST",
+    location: ["Brisbane", "Melbourne", "Sydney"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Lord Howe Standard Time",
+    utc: 10.5,
+    short: "LHST",
+    location: ["Lord Howe Island"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Solomon Islands Time",
+    utc: 11,
+    short: "SBT",
+    location: ["Honiara", "New Caledonia"],
+    lang: ["en_nz", "fr_nc"]
+  },
+  {
+    name: "New Zealand Standard Time",
+    utc: 12,
+    short: "NZST",
+    location: ["Wellington", "Auckland"],
+    lang: ["en_nz", "mi_nz"]
+  },
+  {
+    name: "Chatham Islands Standard Time",
+    utc: 12.75,
+    short: "CHAST",
+    location: ["Chatham Islands"],
+    lang: ["en_nz", "mi_nz"]
+  },
+  {
+    name: "Tonga Time",
+    utc: 13,
+    short: "TOT",
+    location: ["Tonga", "Tokelau"],
+    lang: ["en_nz", "to_to"]
+  },
+  {
+    name: "Line Islands Time",
+    utc: 14,
+    short: "LINT",
+    location: ["Kiritimati", "Line Islands"],
+    lang: ["en_ki", "gil_ki"]
+  }
+];
+
+
+const entity_blocklist = [
+  {
+    id: "agent" // WTF
+  },
+  {
+    id: "area_effect_cloud" // WTF
+  },
+  {
+    id: "armor_stand"
+  },
+  {
+    id: "arrow"
+  },
+  {
+    id: "boat"
+  },
+  {
+    id: "breeze_wind_charge_projectile"
+  },
+  {
+    id: "chest_boat"
+  },
+  {
+    id: "chest_minecart"
+  },
+  {
+    id: "command_block_minecart"
+  },
+  {
+    id: "dragon_fireball"
+  },
+  {
+    id: "egg"
+  },
+  {
+    id: "ender_crystal"
+  },
+  {
+    id: "ender_pearl"
+  },
+  {
+    id: "eye_of_ender_signal"
+  },
+  {
+    id: "fireball"
+  },
+  {
+    id: "fireworks_rocket"
+  },
+  {
+    id: "fishing_hook"
+  },
+  {
+    id: "hopper_minecart"
+  },
+  {
+    id: "lightning_bolt"
+  },
+  {
+    id: "lingering_potion"
+  },
+  {
+    id: "llama_spit"
+  },
+  {
+    id: "minecart"
+  },
+  {
+    id: "npc"
+  },
+  {
+    id: "ominous_item_spawner"
+  },
+  {
+    id: "player" // Technically I could do player as goal but it could result to a soft lock if the selected player leaves... Maybe something for a future update
+  },
+  {
+    id: "shulker_bullet"
+  },
+  {
+    id: "small_fireball"
+  },
+  {
+    id: "snowball"
+  },
+  {
+    id: "splash_potion"
+  },
+  {
+    id: "thrown_trident"
+  },
+  {
+    id: "tnt"
+  },
+  {
+    id: "tnt_minecart"
+  },
+  {
+    id: "tripod_camera" // WTF
+  },
+  {
+    id: "wind_charge_projectile"
+  },
+  {
+    id: "wither_skull"
+  },
+  {
+    id: "wither_skull_dangerous"
+  },
+  {
+    id: "xp_bottle"
+  },
+  {
+    id: "xp_orb"
+  },
+  {
+    id: "zombie_horse" // Have you ever found it in survival?
+  },
+  // Minecraft still has the V1 Villagers in the code, the ones before 1.14, which you will no longer find because they are all replaced by V2 automatically
+  {
+    id: "zombie_villager"
+  },
+  {
+    id: "villager"
+  },
+  // Only available if edu is activated
+  {
+    id: "balloon"
+  },
+    {
+    id: "ice_bomb"
+  }
+]
+
+const entity_exceptionlist = {
+  evocation_illager: {
+    icon: "textures/items/spawn_eggs/spawn_egg_evoker"
+  },
+
+  zombie_pigman: {
+    icon: "textures/items/spawn_eggs/spawn_egg_zombified_piglin"
+  },
+
+  villager_v2: {
+    icon: "textures/items/spawn_eggs/spawn_egg_villager"
+  },
+
+  zombie_villager_v2: {
+    icon: "textures/items/spawn_eggs/spawn_egg_zombie_villager"
   }
 }
 
@@ -79,7 +516,7 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
+  const default_save_data_structure = {utc: undefined, update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -236,7 +673,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
   }
 
   if (version_info.release_type !== 2 && save_data[player_sd_index].op) {
-    player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §lgithub.com/TheFelixLive/Command2Hardcore")
+    player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §l"+links[0].link)
     player.playSound("random.pop")
   }
 
@@ -257,7 +694,7 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
   if (save_data[player_sd_index].op && (Math.floor(Date.now() / 1000)) > save_data[0].update_message_unix) {
     let form = new ActionFormData();
     form.title("Update time!");
-    form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7github.com/TheFelixLive/Command2Hardcore");
+    form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7"+links[0].link);
     form.button("Mute");
 
     const showForm = async () => {
@@ -291,24 +728,18 @@ world.afterEvents.playerLeave.subscribe(({ playerId, playerName }) => {
  Open the menu
 -------------------------*/
 
-
 // via. item
 world.beforeEvents.itemUse.subscribe(event => {
-	if (event.itemStack.typeId === "minecraft:stick") {
-    let player = event.source
-    system.run(() => {
-      let save_data = load_save_data();
-      let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  const save_data = load_save_data();
+  const idx = save_data.findIndex(e => e.id === event.source.id);
 
-      if (save_data[player_sd_index].op) {
-        return main_menu(player)
-      } else {
-        player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
-      }
-    });
-	}
+  if (event.itemStack.typeId === "minecraft:stick" && save_data[idx].gesture.stick) {
+      system.run(() => {
+        event.source.playSound("random.pop2")
+        main_menu(event.source);
+      });
+  }
 });
-
 
 // via. jump gesture
 const gestureCooldowns_jump = new Map();
@@ -334,11 +765,8 @@ async function gesture_jump() {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
       if (save_data[idx].gesture.sneak) {
-        if (save_data[idx].op) {
-          main_menu(player)
-        } else {
-          player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
-        }
+        player.playSound("random.pop2")
+        main_menu(player);
       }
 
       gestureCooldowns_jump.set(player.id, now);
@@ -374,11 +802,8 @@ async function gesture_emote() {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
       if (save_data[idx].gesture.emote) {
-        if (save_data[idx].op) {
-          main_menu(player)
-        } else {
-          player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
-        }
+        player.playSound("random.pop2")
+        main_menu(player);
       }
 
       gestureCooldowns_emote.set(player.id, now);
@@ -389,16 +814,14 @@ async function gesture_emote() {
 }
 
 
-
-
-// via. gesture
+// via. nod gesture
 const playerHeadMovement = new Map();
 
 async function gesture_nod() {
   const now = Date.now();
 
   for (const player of world.getAllPlayers()) {
-    if (player.getGameMode() !== "spectator") continue;
+    if (player.getGameMode() == "spectator") continue;
 
     const { x: pitch } = player.getRotation();
 
@@ -413,15 +836,11 @@ async function gesture_nod() {
       lastTime = now;
     }
     else if (state === "lookingUp" && pitch > 13) {
-      let save_data = load_save_data();
-      let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
-      if (save_data[player_sd_index].gesture.nod) {
-        if (save_data[player_sd_index].op) {
-          main_menu(player)
-        } else {
-          player.sendMessage("§l§7[§fSystem§7]§r You do not have the right permission to run commands! Ask "+ getBestPlayerName(save_data) +" for a promotion.")
-        }
+      const save_data = load_save_data();
+      const idx = save_data.findIndex(e => e.id === player.id);
+      if (save_data[idx].gesture.nod) {
+        player.playSound("random.pop2")
+        main_menu(player);
       }
 
       state = "idle";
@@ -435,7 +854,6 @@ async function gesture_nod() {
     playerHeadMovement.set(player.id, { state, timestamp: lastTime });
   }
 }
-
 
 
 
@@ -531,9 +949,209 @@ function convertUnixToDate(unixSeconds, utcOffset) {
 
 
 
+
+
 /*------------------------
  Menus
 -------------------------*/
+
+function settings_time_zone(player, viewing_mode) {
+  const form = new ActionFormData();
+  const actions = [];
+  const save_data = load_save_data();
+  const now = new Date();
+
+  let current_utc = save_data[0].utc;
+
+  if (current_utc === undefined) {
+    viewing_mode = 3;
+  }
+
+  form.body("Select your current time zone!").title("Time zone");
+
+  const current_zone_index = timezone_list.findIndex(z => z.utc === current_utc)
+    ?? timezone_list.reduce((closest, zone, i) =>
+         Math.abs(zone.utc - current_utc) < Math.abs(timezone_list[closest].utc - current_utc) ? i : closest, 0);
+
+
+  const renderZoneButton = (zone, index) => {
+  const offsetMinutes = zone.utc * 60;
+
+  // UTC-Zeit in Minuten seit Mitternacht
+  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
+  const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
+
+  // Stunden und Minuten extrahieren
+  const localHours = Math.floor(totalMinutes / 60);
+  const localMinutes = totalMinutes % 60;
+
+  // Funktion zur zweistelligen Formatierung
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  // Zeitformatierung mit Farben je nach Tageszeit
+  const getTimeFormat = (minutes) => {
+    const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
+
+    if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
+    if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
+    if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
+    if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
+    return "§9" + timeString;                         // 19:00–00:00
+  };
+
+  // Name oder Kurzform je nach Länge
+  const label = (zone.name.length > 28 ? zone.short : zone.name) + "\n" + getTimeFormat(totalMinutes);
+
+
+
+
+    const getTimeIcon = (minutes) => {
+      if (minutes < 270) return "textures/ui/time_6midnight";        // 00:00–04:30
+      if (minutes < 360) return "textures/ui/time_1sunrise";         // 04:30–06:00
+      if (minutes < 720) return "textures/ui/time_2day";             // 06:00–12:00
+      if (minutes < 1020) return "textures/ui/time_3noon";           // 12:00–17:00
+      if (minutes < 1140) return "textures/ui/time_4sunset";         // 17:00–19:00
+      return "textures/ui/time_5night";                              // 19:00–00:00
+    };
+
+    const icon = index === current_zone_index
+      ? "textures/ui/realms_slot_check"
+      : getTimeIcon(totalMinutes);
+
+    form.button(label, icon);
+
+    actions.push(() => {
+      if (icon === "textures/ui/realms_slot_check") {
+        save_data.forEach(entry => {
+          if (entry.time_source === 1) {
+            entry.time_source = 0;
+          }
+        });
+        save_data[0].utc = undefined;
+        update_save_data(save_data);
+        settings_time_zone(player);
+      } else {
+        settings_time_zone_preview(player, zone, viewing_mode);
+      }
+    });
+  };
+
+
+
+
+  const navButton = (label, icon, mode) => {
+    form.button(label, icon);
+    actions.push(() => settings_time_zone(player, mode));
+  };
+
+  const renderZones = (filterFn) => {
+    timezone_list.forEach((zone, i) => {
+      if (filterFn(i)) renderZoneButton(zone, i);
+    });
+  };
+
+  if (viewing_mode === 0) {
+    let start = Math.max(0, current_zone_index - 2);
+    let end = Math.min(timezone_list.length - 1, current_zone_index + 2);
+
+    if (start > 0) navButton("Show previous time zones", "textures/ui/up_arrow", 1);
+    form.divider();
+    for (let i = start; i <= end; i++) renderZoneButton(timezone_list[i], i);
+    form.divider();
+    if (end < timezone_list.length - 1) navButton("Show later time zones", "textures/ui/down_arrow", 2);
+  } else {
+    if (viewing_mode === 1) navButton("Show less", "textures/ui/down_arrow", 0);
+    if (viewing_mode === 2 && current_zone_index !== 0) {navButton("Show previous time zones", "textures/ui/up_arrow", 3); form.divider();}
+    if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/down_arrow", 2);}
+
+    renderZones(i =>
+      viewing_mode === 3 ||
+      (viewing_mode === 1 && i <= current_zone_index) ||
+      (viewing_mode === 2 && i >= current_zone_index)
+    );
+
+    if (viewing_mode === 1 && current_zone_index !== timezone_list.length) {form.divider(); navButton("Show later time zones", "textures/ui/down_arrow", 3);}
+    if (viewing_mode === 2) {navButton("Show less", "textures/ui/up_arrow", 0)}
+    if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/up_arrow", 1)}
+  }
+
+  form.button("");
+  actions.push(() => {
+    settings_main(player);
+  });
+
+  form.show(player).then(res => {
+    if (res.selection === undefined) {
+      return -1
+    } else {
+      actions[res.selection]?.();
+    }
+  });
+}
+
+
+function settings_time_zone_preview (player, zone, viewing_mode) {
+  const save_data = load_save_data();
+  let form = new MessageFormData();
+  const now = new Date();
+
+  const offsetMinutes = zone.utc * 60;
+
+  // UTC-Zeit in Minuten seit Mitternacht
+  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
+  const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
+
+  // Stunden und Minuten extrahieren
+  const localHours = Math.floor(totalMinutes / 60);
+  const localMinutes = totalMinutes % 60;
+
+  // Funktion zur zweistelligen Formatierung
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  // Zeitformatierung mit Farben je nach Tageszeit
+  const getTimeFormat = (minutes) => {
+    const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
+
+    if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
+    if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
+    if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
+    if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
+    return "§9" + timeString;                         // 19:00–00:00
+  };
+
+// Name oder Kurzform je nach Länge
+const label = (zone.name.length > 28 ? zone.short : zone.name) + "\n" + getTimeFormat(totalMinutes);
+
+
+  form.title("Time zone");
+  form.body(
+    "Time zone: " + zone.name +
+    "\nUTC: "+ (zone.utc >= 0 ? "+" : "") + zone.utc +
+    "\nTime: " + getTimeFormat(totalMinutes) +
+    "§r\nLocation: " + zone.location.join(", ") +
+    "\n\nDo you want to use this time zone?\n "
+  )
+
+  form.button1("Switch to " +zone.short);
+  form.button2("");
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection == 0) {
+      save_data[0].utc = zone.utc;
+      update_save_data(save_data);
+      return settings_main(player);
+    }
+    settings_time_zone(player, viewing_mode);
+  });
+
+}
 
 function main_menu(player) {
   let form = new ActionFormData();
@@ -544,17 +1162,6 @@ function main_menu(player) {
 
   form.title("Main menu");
   form.body("Select an option!");
-
-
-  // Timer: menu
-  if (use_timer) {
-    form.button("Timer V", "textures/ui/timer");
-    actions.push(() => {
-      player.runCommand("/scriptevent timerv:api_menu")
-    });
-    form.divider()
-    if (world.isHardcore) form.label("Run commands")
-  }
 
   // Button: Commands
 
@@ -607,6 +1214,14 @@ function main_menu(player) {
     }
   }
 
+  // Timer: menu
+  if (use_timer) {
+    form.button("Timer V", "textures/ui/timer");
+    actions.push(() => {
+      player.runCommand("/scriptevent timerv:api_menu")
+    });
+  }
+
   // Button: Settings
   form.button(use_timer? "Settings\n(Com2Hard)" : "Settings", use_timer? "textures/ui/debug_glyph_color" : "textures/ui/automation_glyph_color");
   actions.push(() => {
@@ -639,9 +1254,9 @@ function command_history_menu(player) {
   // Sort and take the most recent 9 entries
   let sortedHistory = saveData[playerIndex].command_history
     .sort((a, b) => b.unix - a.unix)
-    .slice(0, 9);
 
   const now = Math.floor(Date.now() / 1000);
+  const utcOffsetMinutes = Math.round((saveData[0]?.utc || 0) * 60); // default to 0 if not set
 
   // English month names
   const monthNames = [
@@ -653,21 +1268,23 @@ function command_history_menu(player) {
 
   sortedHistory.forEach(entry => {
     const diffSec = now - entry.unix;
-    const date = new Date(entry.unix * 1000);
+
+    // Lokale Zeit berechnen
+    const localUnix = entry.unix + utcOffsetMinutes * 60;
+    const date = new Date(localUnix * 1000);
+
     const year = date.getFullYear();
-    const month = date.getMonth();      // 0–11
+    const month = date.getMonth();
     const hour = date.getHours();
     const minute = date.getMinutes();
 
-    // Determine group and label
+    // Zeitstempel beschriften
     let group, label;
     if (diffSec < 3600) {
-      // within the last hour → minute precision
       const mm = String(minute).padStart(2, '0');
       label = `${hour}:${mm} o'clock`;
       group = `minute-${hour}-${minute}`;
     } else if (diffSec < 24 * 3600) {
-      // within the last 24 hours → hour precision
       label = `${hour} o'clock`;
       group = `hour-${hour}`;
     } else if (diffSec < 2 * 24 * 3600) {
@@ -680,22 +1297,20 @@ function command_history_menu(player) {
       label = "Last week";
       group = "last-week";
     } else if (year === new Date().getFullYear()) {
-      // this year but older than two weeks → month name
       label = monthNames[month];
       group = `month-${month}`;
     } else {
-      // older → year
       label = String(year);
       group = `year-${year}`;
     }
 
-    // Only insert the label once per group
+    // Label pro Gruppe nur einmal anzeigen
     if (group !== lastGroup) {
       form.label(label);
       lastGroup = group;
     }
 
-    // Button with command, status, and relative time
+    // Button mit Kommando-Infos
     const cmdName = entry.command.split(" ")[0];
     const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
     const relativeTime = getRelativeTime(diffSec);
@@ -710,7 +1325,7 @@ function command_history_menu(player) {
     });
   });
 
-  // Back button
+  // Zurück-Button
   form.button("");
   actions.push(() => main_menu(player));
 
@@ -721,19 +1336,25 @@ function command_history_menu(player) {
 }
 
 
+
+
 function visual_command(player) {
   let form = new ActionFormData();
   let actions = [];
 
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
   form.title("Visual commands");
   form.body("Select an command!");
+
+  form.button("Summon", "textures/items/spawn_eggs/spawn_egg_agent");
+  actions.push(() => all_EntityTypes(player));
+
+  form.button("Time", "textures/ui/time_2day");
+  actions.push(() => visual_command_time(player));
 
   form.button("Weather", "textures/ui/weather_rain");
   actions.push(() => visual_command_weather(player));
 
+  form.divider()
   form.button("");
   actions.push(() => main_menu(player));
 
@@ -747,6 +1368,91 @@ function visual_command(player) {
     }
   });
 
+}
+
+function all_EntityTypes(player) {
+  let form = new ActionFormData()
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let actions = []
+
+  form.title("Visual commands - summon");
+  form.body("What do you want to spawn?");
+
+  EntityTypes.getAll()
+  .sort((a, b) => a.id.localeCompare(b.id))
+  .forEach(e => {
+
+    const id = e.id.replace(/^minecraft:/, "");
+
+    // Deletes all entries that are on the blocklist!
+    if (!entity_blocklist.find(entity => entity.id == id)) {
+      let icon = "textures/items/spawn_eggs/spawn_egg_" + id;
+
+      if (entity_exceptionlist[id]) {
+        icon = entity_exceptionlist[id].icon;
+      }
+
+      form.button({ rawtext: [{ translate: "entity." + id + ".name" }]}, icon);
+
+      actions.push(() => save_data[player_sd_index].quick_run
+        ? execute_command(player, "summon " + id, false)
+        : command_menu(player, "summon " + id)
+      );
+    }
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return visual_command(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function visual_command_time(player) {
+  const form = new ActionFormData();
+  const actions = [];
+  const saveData = load_save_data();
+  const idx = saveData.findIndex(e => e.id === player.id);
+  form.title("Visual commands - time");
+  form.body("What's the time again?");
+
+  // Define all weather options in one place
+  [
+    { label: "Sunrise\n§e6:00 o'clock",    icon: "textures/ui/time_1sunrise",        cmd: "/time set 0"   },
+    { label: "Day\n§b8:00 o'clock",             icon: "textures/ui/time_2day",         cmd: "/time set 1000"    },
+    { label: "Noon\n§b12:00 o'clock",    icon: "textures/ui/time_3noon", cmd: "/time set 6000" },
+    { label: "Sunset\n§e18:00 o'clock",    icon: "textures/ui/time_4sunset", cmd: "/time set 12000" },
+    { label: "Night\n§919:00 o'clock",    icon: "textures/ui/time_5night", cmd: "/time set 13000" },
+    { label: "Midnight\n§90:00 o'clock",    icon: "textures/ui/time_6midnight", cmd: "/time set 18000" }
+  ].forEach(opt => {
+    form.button(opt.label, opt.icon);
+    actions.push(() => saveData[idx].quick_run
+      ? execute_command(player, opt.cmd, false)
+      : command_menu(player, opt.cmd)
+    );
+  });
+
+  // Back button
+  form.divider()
+  form.button("");
+  actions.push(() => visual_command(player));
+
+  form.show(player).then(resp => {
+    if (resp.selection != null && actions[resp.selection]) {
+      actions[resp.selection]();
+    }
+  });
 }
 
 function visual_command_weather(player) {
@@ -771,8 +1477,9 @@ function visual_command_weather(player) {
   });
 
   // Back button
+  form.divider()
   form.button("");
-  actions.push(() => main_menu(player));
+  actions.push(() => visual_command(player));
 
   form.show(player).then(resp => {
     if (resp.selection != null && actions[resp.selection]) {
@@ -813,7 +1520,7 @@ function command_menu(player, command) {
     }
 
     if (matchedBlock) {
-      let form = new ActionFormData();
+      let form = new MessageFormData();
       let actions = [];
       form.title("Warning");
       form.body(
@@ -825,13 +1532,13 @@ function command_menu(player, command) {
       );
 
       if (matchedBlock.rating > 0) {
-        form.button(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
+        form.button1(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
         actions.push(() => {
           return execute_command(player, cmd, byServer, save_data, player_sd_index);
         });
       }
 
-      form.button(""); // Cancel
+      form.button2(""); // Cancel
       actions.push(() => {
         return command_menu(player, cmd);
       });
@@ -957,8 +1664,28 @@ function settings_main(player) {
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
   form.title("Settings");
-  form.body("Select an option!");
+  form.body("Your self");
 
+  // Button 2: Quick run
+  form.button("Quick run\n" + (save_data[player_sd_index].quick_run ? "§aon" : "§coff"), (save_data[player_sd_index].quick_run ? "textures/ui/sprint_pressed" : "textures/ui/sprint"));
+  actions.push(() => {
+    if (!save_data[player_sd_index].quick_run) {
+      save_data[player_sd_index].quick_run = true;
+    } else {
+      save_data[player_sd_index].quick_run = false;
+    }
+    update_save_data(save_data);
+    settings_main(player);
+  });
+
+  // Button 3: Gestures
+  form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+  actions.push(() => {
+    settings_gestures(player)
+  });
+
+  form.divider()
+  form.label("Multiplayer");
 
   // Button 1: Permission
   if (save_data[player_sd_index].op) {
@@ -976,25 +1703,34 @@ function settings_main(player) {
     });
   }
 
+  // Button 4: UTC
+  if (save_data[player_sd_index].op == true) {
+      let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
 
-  // Button 2: Permission
-  form.button("Quick run\n" + (save_data[player_sd_index].quick_run ? "§aon" : "§coff"), (save_data[player_sd_index].quick_run ? "textures/ui/sprint_pressed" : "textures/ui/sprint"));
-  actions.push(() => {
-    if (!save_data[player_sd_index].quick_run) {
-      save_data[player_sd_index].quick_run = true;
-    } else {
-      save_data[player_sd_index].quick_run = false;
-    }
-    update_save_data(save_data);
-    settings_main(player);
-  });
+      if (!zone) {
+        if (zone !== undefined) {
+          zone = timezone_list.reduce((closest, current) => {
+            const currentDiff = Math.abs(current.utc - save_data[0].utc);
+            const closestDiff = Math.abs(closest.utc - save_data[0].utc);
+            return currentDiff < closestDiff ? current : closest;
+          });
+          zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
+        }
+      } else {
+        zone_text = zone.name.length > 30 ? zone.short : zone.name
+      }
 
-  form.button("Gestures", "textures/ui/sidebar_icons/emotes");
-  actions.push(() => {
-    settings_gestures(player)
-  });
 
-  // Button 3: Debug
+    form.button(("Time zone") + (zone !== undefined? "\n§9"+zone_text : ""), "textures/ui/world_glyph_color_2x")
+    actions.push(() => {
+      settings_time_zone(player, 0);
+    });
+  }
+
+  form.divider()
+  form.label("Version");
+
+  // Button 5: Debug
   if (version_info.release_type == 0 && save_data[player_sd_index].op) {
     form.button("Debug\n", "textures/ui/ui_debug_glyph_color");
     actions.push(() => {
@@ -1002,11 +1738,13 @@ function settings_main(player) {
     });
   }
 
-  // Button 4: Dictionary
+  // Button 6: Dictionary
   form.button("About\n", "textures/ui/infobulb");
   actions.push(() => {
     dictionary_about_version(player)
   });
+
+  form.divider()
 
   // Back to main menu
   form.button("");
@@ -1091,6 +1829,7 @@ function settings_gestures(player) {
     });
   });
 
+  form.divider()
   form.button("");
   actions.push(() => {
     settings_main(player);
@@ -1112,13 +1851,14 @@ function settings_gestures(player) {
 function dictionary_about_version(player) {
   let form = new ActionFormData()
   let actions = []
-  let build_date = convertUnixToDate(version_info.unix, 0);
+  let save_data = load_save_data()
+  let build_date = convertUnixToDate(version_info.unix, save_data[0].utc);
   form.title("About")
   form.body(
     "Name: " + version_info.name + "\n" +
     "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
-    "Build date: " + `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})` +
+    (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : "Build date: " + `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
 
     "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. All rights reserved."
   )
@@ -1135,6 +1875,7 @@ function dictionary_about_version(player) {
     dictionary_contact(player, build_date)
   });
 
+  form.divider()
   form.button("");
   actions.push(() => {
     return settings_main(player);
@@ -1167,7 +1908,13 @@ function dictionary_contact(player, build_date) {
 
   let actions = []
   form.title("Contact")
-  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n\n§l§5Github:§r github.com/TheFelixLive/Command2Hardcore/issues\n\n§8Curseforge:§r curseforge.com/projects/1277546");
+
+  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n");
+
+  for (const entry of links) {
+    if (entry !== links[0]) form.divider()
+    form.label(`${entry.name}\n${entry.link}`);
+  }
 
   if (save_data[player_sd_index].op) {
     form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
@@ -1182,7 +1929,7 @@ function dictionary_contact(player, build_date) {
       });
     }
   }
-
+  form.divider()
   form.button("");
   actions.push(() => {
     dictionary_about_version(player, build_date)
@@ -1209,24 +1956,24 @@ function dictionary_about_version_changelog(player, build_date) {
 
   // New Features
   if (hasNew) {
-    form.label("§l§bNew Features§r\n\n");
-    new_features.forEach(feature => form.label(`- ${feature}\n\n`));
+    form.label("§l§bNew Features§r\n");
+    new_features.forEach(feature => form.label(`- ${feature}\n`));
     // only draw divider if there's another section after
     if (hasGeneral || hasBug) form.divider();
   }
 
   // General Changes
   if (hasGeneral) {
-    form.label("§l§aGeneral Changes§r\n\n");
-    general_changes.forEach(change => form.label(`- ${change}\n\n`));
+    form.label("§l§aGeneral Changes§r\n");
+    general_changes.forEach(change => form.label(`- ${change}\n`));
     // only draw divider if Bug Fixes follow
     if (hasBug) form.divider();
   }
 
   // Bug Fixes
   if (hasBug) {
-    form.label("§l§cBug Fixes§r\n\n");
-    bug_fixes.forEach(fix => form.label(`- ${fix}\n\n`));
+    form.label("§l§cBug Fixes§r\n");
+    bug_fixes.forEach(fix => form.label(`- ${fix}\n`));
   }
 
 
@@ -1251,30 +1998,81 @@ function dictionary_about_version_changelog(player, build_date) {
  Debug
 -------------------------*/
 
+
 function debug_main(player) {
   let form = new ActionFormData()
+  let actions = []
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-  form.body("DynamicPropertyTotalByteCount: "+world.getDynamicPropertyTotalByteCount() +" of 32767 bytes used")
+  form.body("DynamicPropertyTotalByteCount: "+world.getDynamicPropertyTotalByteCount() +" of 32767 bytes used ("+Math.floor((world.getDynamicPropertyTotalByteCount()/32767)*100) +" Procent)")
+
+
   form.button("§e\"save_data\" Editor");
+  actions.push(() => {
+    debug_sd_editor(player, () => debug_main(player), [])
+  });
+
+
   form.button("§aAdd player (save data)");
+  actions.push(() => {
+    return debug_add_fake_player(player);
+  });
+
+  form.button("Test max button");
+  actions.push(() => {
+    return test_max_button(player);
+  });
+
   form.button("§cRemove \"save_data\"");
+  actions.push(() => {
+    world.setDynamicProperty("com2hard:save_data", undefined);
+    return close_world()
+  });
+
+
   form.button("§cClose Server");
+  actions.push(() => {
+    return close_world()
+  });
+
+  form.divider()
   form.button("");
+  actions.push(() => {
+    return settings_main(player)
+  });
+
 
   form.show(player).then((response) => {
     if (response.selection == undefined ) {
-      return -1
     }
-    if (response.selection == 0) return debug_sd_editor(player, () => debug_main(player), []);
-    if (response.selection == 1) return debug_add_fake_player(player);
-    if (response.selection == 2) {world.setDynamicProperty("com2hard:save_data", undefined); close_world()}
-    if (response.selection == 3) {close_world()}
-    if (response.selection == 4) {
-      return settings_main(player)
-    };
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
   });
 }
 
+
+function test_max_button (player) {
+    const form = new ActionFormData()
+    .title("Button-Test")
+    .body("Hier sind 24 Buttons:");
+
+  // 24 Buttons hinzufügen
+  for (let i = 1; i <= 1000; i++) {
+    form.button(`Button ${i}`);
+  }
+
+  // Formular anzeigen
+  form.show(player).then((response) => {
+    if (response.canceled) {
+      player.sendMessage("Du hast das Formular abgebrochen.");
+    } else {
+      const index = response.selection;
+      player.sendMessage(`Du hast Button ${index + 1} gewählt.`);
+    }
+  });
+}
 
 
 function debug_sd_editor(player, onBack, path = []) {
@@ -1299,6 +2097,7 @@ function debug_sd_editor(player, onBack, path = []) {
       form.button(label, "textures/ui/storageIconColor");
     });
 
+    form.divider()
     form.button(""); // Back
 
     form.show(player).then(res => {
@@ -1343,6 +2142,7 @@ function debug_sd_editor(player, onBack, path = []) {
       }
     });
 
+    form.divider()
     form.button(""); // Back
 
     form.show(player).then(res => {
@@ -1528,6 +2328,7 @@ function settings_rights_main(player, came_from_settings) {
     }
   });
 
+  form.divider()
   form.button("");
 
   if (newList.length == 1) {
@@ -1661,6 +2462,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
     settings_rights_manage_sd(viewing_player, selected_save_data);
   });
 
+  form.divider()
   form.button("");
   actions.push(() => {
     settings_rights_main(viewing_player, false);
