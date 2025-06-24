@@ -1,13 +1,13 @@
-import { system, world, EntityTypes } from "@minecraft/server";
+import { system, world, EntityTypes, EffectTypes } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.0.0",
-  build: "B013",
+  build: "B014",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1750710071,
+  unix: 1750797014,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
@@ -22,7 +22,6 @@ const version_info = {
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug that prevented the menu from opening in spectator mode"
     ]
   }
 }
@@ -821,7 +820,7 @@ async function gesture_nod() {
   const now = Date.now();
 
   for (const player of world.getAllPlayers()) {
-    if (player.getGameMode() == "spectator") continue;
+    if (player.getGameMode() !== "Spectator") continue;
 
     const { x: pitch } = player.getRotation();
 
@@ -1305,7 +1304,7 @@ function command_history_menu(player) {
     }
 
     // Label pro Gruppe nur einmal anzeigen
-    if (group !== lastGroup) {
+    if (group !== lastGroup && saveData[0].utc) {
       form.label(label);
       lastGroup = group;
     }
@@ -1345,6 +1344,9 @@ function visual_command(player) {
   form.title("Visual commands");
   form.body("Select an command!");
 
+  form.button("Effect", "textures/ui/absorption_effect");
+  actions.push(() => visual_command_effect_select(player));
+
   form.button("Summon", "textures/items/spawn_eggs/spawn_egg_agent");
   actions.push(() => all_EntityTypes(player));
 
@@ -1369,6 +1371,92 @@ function visual_command(player) {
   });
 
 }
+
+function visual_command_effect_select(player) {
+  let form = new ActionFormData()
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let actions = []
+
+  form.title("Visual commands - effect");
+  form.body("Select an effect!");
+
+  EffectTypes.getAll()
+  .sort((a, b) => a.getName().localeCompare(b.getName()))
+  .forEach(e => {
+
+    const id = e.getName().replace(/^minecraft:/, "");
+
+    // Deletes all entries that are on the blocklist!
+    if (!entity_blocklist.find(entity => entity.id == id)) {
+      let icon = "textures/ui/" + id + "_effect";
+
+      if (id !== "empty") form.button(id, icon);
+
+      actions.push(() => visual_command_effect_config(player, id)
+      );
+    }
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return visual_command(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+
+function visual_command_effect_config(player, id) {
+  const form = new ModalFormData();
+  const save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(e => e.id === player.id);
+  form.title(id + " - config");
+
+  const allPlayers = world.getAllPlayers();
+  const playerNames = allPlayers.map(p => p.name);
+  if (playerNames.length !== 1) {
+    if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
+    form.dropdown('Target', playerNames, {
+      defaultValueIndex: playerNames.indexOf(player.name)
+    });
+  }
+
+  form.slider("Effect Level", 0, 255);
+  form.slider("Duration (s)", 0, 999, { defaultValue: 20 });
+  form.toggle("Disable Duration", { tooltip: "Sets the duration to infinity" });
+  form.toggle("Hide Effect Particle", { defaultValue: true });
+
+  form.show(player).then(resp => {
+    if (!resp.formValues) return -1;
+
+    let index = 0;
+    const targetName = (playerNames.length !== 1) ? resp.formValues[index++] : player.name;
+    const effectLevel = resp.formValues[index++];
+    const duration = resp.formValues[index++];
+    const disableDuration = resp.formValues[index++];
+    const hideParticles = resp.formValues[index++];
+
+    const durationValue = disableDuration ? "infinite" : duration;
+    const hideFlag = hideParticles ? "true" : "false";
+
+    const command = `/effect "${targetName}" ${id} ${durationValue} ${effectLevel} ${hideFlag}`;
+
+    save_data[player_sd_index].quick_run
+      ? execute_command(player, command, false)
+      : command_menu(player, command);
+  });
+}
+
 
 function all_EntityTypes(player) {
   let form = new ActionFormData()
@@ -1429,12 +1517,12 @@ function visual_command_time(player) {
 
   // Define all weather options in one place
   [
+    { label: "Midnight\n§90:00 o'clock",    icon: "textures/ui/time_6midnight", cmd: "/time set 18000" },
     { label: "Sunrise\n§e6:00 o'clock",    icon: "textures/ui/time_1sunrise",        cmd: "/time set 0"   },
     { label: "Day\n§b8:00 o'clock",             icon: "textures/ui/time_2day",         cmd: "/time set 1000"    },
     { label: "Noon\n§b12:00 o'clock",    icon: "textures/ui/time_3noon", cmd: "/time set 6000" },
     { label: "Sunset\n§e18:00 o'clock",    icon: "textures/ui/time_4sunset", cmd: "/time set 12000" },
-    { label: "Night\n§919:00 o'clock",    icon: "textures/ui/time_5night", cmd: "/time set 13000" },
-    { label: "Midnight\n§90:00 o'clock",    icon: "textures/ui/time_6midnight", cmd: "/time set 18000" }
+    { label: "Night\n§919:00 o'clock",    icon: "textures/ui/time_5night", cmd: "/time set 13000" }
   ].forEach(opt => {
     form.button(opt.label, opt.icon);
     actions.push(() => saveData[idx].quick_run
@@ -2087,7 +2175,7 @@ function debug_sd_editor(player, onBack, path = []) {
 
   if (Array.isArray(current)) {
     const form = new ActionFormData()
-      .title("Debug Editor v.1.0")
+      .title("Debug Editor v.1.1")
       .body(`Path: §7save_data/`);
 
     current.forEach((entry, idx) => {
@@ -2097,7 +2185,6 @@ function debug_sd_editor(player, onBack, path = []) {
       form.button(label, "textures/ui/storageIconColor");
     });
 
-    form.divider()
     form.button(""); // Back
 
     form.show(player).then(res => {
@@ -2123,7 +2210,7 @@ function debug_sd_editor(player, onBack, path = []) {
     });
   const displayPath = `save_data/${displaySegments.join("/")}`;
     const form = new ActionFormData()
-      .title("Debug Editor v.1.0")
+      .title("Debug Editor v.1.1")
       .body(`Path: §7${displayPath}`);
 
     keys.forEach(key => {
@@ -2142,7 +2229,6 @@ function debug_sd_editor(player, onBack, path = []) {
       }
     });
 
-    form.divider()
     form.button(""); // Back
 
     form.show(player).then(res => {
@@ -2168,27 +2254,11 @@ function debug_sd_editor(player, onBack, path = []) {
         update_save_data(fresh);
         returnToCurrentMenu();
 
-      } else if (typeof val === "number") {
+      } else if (typeof val === "number" || typeof val === "string") {
         // Number-Editor
-        openNumberEditor(
-          player,
-          val,
-          nextPath,
-          newVal => {
-            target[key] = newVal;
-            update_save_data(fresh);
-            returnToCurrentMenu();
-          },
-          () => {
-            return -1
-          }
-        );
-
-      } else if (typeof val === "string") {
-        // Text-Editor
         openTextEditor(
           player,
-          val,
+          String(val),
           nextPath,
           newText => {
             target[key] = newText;
@@ -2207,49 +2277,36 @@ function debug_sd_editor(player, onBack, path = []) {
   }
 }
 
-
-
-
-
-function openNumberEditor(player, current, path, onSave, onCancel) {
-  const displaySegments = path.map((seg, idx) => {
-    if (idx === 0) {
-      return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
-    }
-    return seg;
-  });
-  const fullPath = `save_data/${displaySegments.join("/")}`;
-  const form = new ModalFormData();
-  form.title("Edit Number");
-  form.slider(`Path: §7${fullPath} > Value`, 0, 100, 1, current);
-  form.submitButton("Save");
-  form.show(player).then(res => {
-    if (res.canceled) {
-      return onCancel();
-    }
-    onSave(res.formValues[0]);
-  });
-}
-
 function openTextEditor(player, current, path, onSave, onCancel) {
+  let save_data = load_save_data()
   const displaySegments = path.map((seg, idx) => {
     if (idx === 0) {
       return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
     }
     return seg;
   });
+
   const fullPath = `save_data/${displaySegments.join("/")}`;
   const form = new ModalFormData();
   form.title("Edit Text");
-  form.textField(`Path: ${fullPath} > Value:`, "Enter text...", current);
+  form.textField(`Path: ${fullPath} > Value:`, "Enter text...", {defaultValue: current});
   form.submitButton("Save");
+
   form.show(player).then(res => {
     if (res.canceled) {
       return onCancel();
     }
-    onSave(res.formValues[0]);
+
+    let input = res.formValues[0];
+    // Wenn der String nur aus Ziffern besteht, in Zahl umwandeln
+    if (/^\d+$/.test(input)) {
+      input = Number(input);
+    }
+
+    onSave(input);
   });
 }
+
 
 
 
