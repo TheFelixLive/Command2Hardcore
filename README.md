@@ -1,6 +1,5 @@
 # Command2Hardcore
-
-![Image](https://github.com/user-attachments/assets/093e94d3-f5dd-4dbf-aa71-5da9e38741eb)
+<img src="https://github.com/user-attachments/assets/093e94d3-f5dd-4dbf-aa71-5da9e38741eb" width="1920" height="auto" />
 
 ## About
 Normally, you can't execute commands in hardcore mode. Not even if you explicitly want to! That's where this add-on comes in, allowing you to execute commands comfortably via a small detour!
@@ -15,14 +14,20 @@ Normally, you can't execute commands in hardcore mode. Not even if you explicitl
 It's an limitation of Minecraft
 
 ## Intuitiveness
-If you have a syntax misstage in your command, the addon will also display it in a littly ui
+Some commands can be entirely configuration via the menu. It's called visuel command
+
+![Minecraft 24 06 2025 22_07_41](https://github.com/user-attachments/assets/4baef785-b802-432f-91d6-f507472f21d5)
+
+### What's wrong?
+If you do have a syntax misstage in your command, the addon will also display it in a littly ui to help you understand what went wrong
 
 ![Image](https://github.com/user-attachments/assets/ef4b2e37-3a38-4dd6-a26a-dd4ee877f12b)
 
 ## History
-Every command that's being execute will be sorted to your world, so you can run them again whenever you want.
+Every command that's being execute will be sorted to your world, so you can run them again whenever you want even when you left the world.
+> I think console players will love that...
 
-![Image](https://github.com/user-attachments/assets/7443b352-91fa-455b-b8de-01e22befbad0)
+![Minecraft 23 06 2025 17_11_28](https://github.com/user-attachments/assets/79047fdf-9972-4bc0-a593-55314e98072b)
 
 # Multiplayer
 By default, your friends don't have permission to prevent them turning your world to the next 2b2t server.
