@@ -4,24 +4,28 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.2.0.0",
-  build: "B014",
+  version: "v.2.0.1",
+  build: "B015",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1750797014,
+  unix: 1751369360,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
     new_features: [
-      "Redesign some menus",
-      "Added visual commands (run command via. GUI)",
-      "Added UTC settings"
     ],
     // general_changes
     general_changes: [
-      "Command history is better sorted",
+      "Effects can now be cleared via. visual commands",
     ],
     // bug_fixes
     bug_fixes: [
+      "Fixed a bug where unathenticated players were able open to the menu §oas Theproblem284 pointed out",
+      "Fixed a bug where the visual effect command was not working properly in multiplayer",
+      "Fixed a bug where the visual effect command applied a wrong effect to the selected player",
+      "Fixed a bug where some icons would load in the visual effect command",
+      "Fixed a bug where some information in the about menu was not displayed correctly",
+      "Fixed a bug where the 'last online' time was not updated correctly when the player left the world",
+
     ]
   }
 }
@@ -712,17 +716,6 @@ world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
   }
 });
 
-world.afterEvents.playerLeave.subscribe(({ playerId, playerName }) => {
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
-
-  // When a player's sd gets removed he will kick out of the game triggering this...
-  if (player_sd_index) {
-    save_data[player_sd_index].last_unix = Math.floor(Date.now() / 1000)
-    update_save_data(save_data);
-  }
-});
-
 /*------------------------
  Open the menu
 -------------------------*/
@@ -734,8 +727,10 @@ world.beforeEvents.itemUse.subscribe(event => {
 
   if (event.itemStack.typeId === "minecraft:stick" && save_data[idx].gesture.stick) {
       system.run(() => {
-        event.source.playSound("random.pop2")
-        main_menu(event.source);
+        if (save_data[idx].op) {
+          event.source.playSound("random.pop2")
+          main_menu(event.source);
+        }
       });
   }
 });
@@ -763,7 +758,7 @@ async function gesture_jump() {
     if (isSneaking && isJumping && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.sneak) {
+      if (save_data[idx].gesture.sneak && save_data[idx].op) {
         player.playSound("random.pop2")
         main_menu(player);
       }
@@ -800,7 +795,7 @@ async function gesture_emote() {
     if (isEmoting && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.emote) {
+      if (save_data[idx].gesture.emote && save_data[idx].op) {
         player.playSound("random.pop2")
         main_menu(player);
       }
@@ -837,7 +832,7 @@ async function gesture_nod() {
     else if (state === "lookingUp" && pitch > 13) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.nod) {
+      if (save_data[idx].gesture.nod && save_data[idx].op) {
         player.playSound("random.pop2")
         main_menu(player);
       }
@@ -1122,9 +1117,6 @@ function settings_time_zone_preview (player, zone, viewing_mode) {
     return "§9" + timeString;                         // 19:00–00:00
   };
 
-// Name oder Kurzform je nach Länge
-const label = (zone.name.length > 28 ? zone.short : zone.name) + "\n" + getTimeFormat(totalMinutes);
-
 
   form.title("Time zone");
   form.body(
@@ -1336,6 +1328,17 @@ function command_history_menu(player) {
 
 
 
+function anyPlayerHasEffect() {
+  for (const player of world.getAllPlayers()) {
+    for (const effectType of EffectTypes.getAll()) {
+      if (player.getEffect(effectType)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 
 function visual_command(player) {
   let form = new ActionFormData();
@@ -1345,7 +1348,11 @@ function visual_command(player) {
   form.body("Select an command!");
 
   form.button("Effect", "textures/ui/absorption_effect");
-  actions.push(() => visual_command_effect_select(player));
+  if (anyPlayerHasEffect()) {
+      actions.push(() => visual_command_effect_select(player));
+    } else {
+      actions.push(() => visual_command_effect_add(player));
+    }
 
   form.button("Summon", "textures/items/spawn_eggs/spawn_egg_agent");
   actions.push(() => all_EntityTypes(player));
@@ -1374,8 +1381,150 @@ function visual_command(player) {
 
 function visual_command_effect_select(player) {
   let form = new ActionFormData()
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let actions = []
+
+  form.title("Visual commands - effect");
+  form.body("Select a type!");
+
+
+  form.button("Add an effect", "textures/ui/color_plus");
+  actions.push(() => {
+    return visual_command_effect_add(player)
+  });
+
+  form.button("Clear an effect", "textures/blocks/barrier");
+  actions.push(() => {
+    return visual_command_effect_clear_player(player)
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return visual_command(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function visual_command_effect_clear_player(player) {
+  let form = new ActionFormData()
+  let actions = []
+
+  form.title("Visual commands - effect");
+  form.body("Select your target!");
+
+
+  if (world.getAllPlayers().length === 1) {
+    return visual_command_effect_clear_config(player, world.getAllPlayers()[0]);
+  }
+
+  for (const player of world.getAllPlayers()) {
+    for (const effectType of EffectTypes.getAll()) {
+      if (player.getEffect(effectType)) {
+        form.button(player.name, "textures/ui/lan_icon");
+        actions.push(() => {
+          return visual_command_effect_clear_config(player, )
+        });
+      }
+    }
+  }
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return visual_command_effect_select(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function visual_command_effect_clear_config(player, target) {
+  let form = new ActionFormData();
+  const save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(e => e.id === player.id);
+  let actions = [];
+
+  form.title("Visual commands - effect");
+  form.body("Select the effect you want to clear from " + target.name + "!");
+
+  if (EffectTypes.getAll().filter(e => target.getEffect(e)).length == 1) {
+    const command = `/effect "${target.name}" clear`;
+
+    return save_data[player_sd_index].quick_run
+      ? execute_command(player, command, false)
+      : command_menu(player, command);
+  }
+
+  if (EffectTypes.getAll().filter(e => target.getEffect(e)).length > 1) {
+    form.button("All effects", "textures/ui/store_sort_icon");
+    actions.push(() => {
+      const command = `/effect "${target.name}" clear`;
+
+      save_data[player_sd_index].quick_run
+        ? execute_command(player, command, false)
+        : command_menu(player, command);
+    });
+    form.divider();
+  }
+
+  // Nur Effekte anzeigen, die der Target-Spieler auch wirklich hat
+  EffectTypes.getAll()
+    .filter(e => target.getEffect(e)) // <-- Nur aktive Effekte
+    .sort((a, b) => a.getName().localeCompare(b.getName()))
+    .forEach(e => {
+      const id = e.getName().replace(/^minecraft:/, "");
+
+      let icon;
+      if (id !== "saturation" && id !== "instant_damage" && id !== "instant_health" && id !== "fatal_poison") {
+        icon = "textures/ui/" + id + "_effect";
+      }
+
+      if (icon) {
+        form.button(id, icon);
+      } else {
+        form.button(id);
+      }
+
+      actions.push(() => {
+        const command = `/effect "${target.name}" clear ${id}`;
+
+        save_data[player_sd_index].quick_run
+          ? execute_command(player, command, false)
+          : command_menu(player, command);
+      });
+  });
+
+  form.divider();
+  form.button(""); // Zurück-Button
+  actions.push(() => visual_command_effect_select(player));
+
+  form.show(player).then((response) => {
+    if (response.selection === undefined) return -1;
+    if (actions[response.selection]) actions[response.selection]();
+  });
+}
+
+
+
+
+function visual_command_effect_add(player) {
+  let form = new ActionFormData()
   let actions = []
 
   form.title("Visual commands - effect");
@@ -1387,20 +1536,25 @@ function visual_command_effect_select(player) {
 
     const id = e.getName().replace(/^minecraft:/, "");
 
-    // Deletes all entries that are on the blocklist!
-    if (!entity_blocklist.find(entity => entity.id == id)) {
-      let icon = "textures/ui/" + id + "_effect";
+    let icon;
+    if (id !== "empty" && id !== "saturation" && id !== "instant_damage" && id !== "instant_health" && id !== "fatal_poison") icon = "textures/ui/" + id + "_effect";
 
-      if (id !== "empty") form.button(id, icon);
-
-      actions.push(() => visual_command_effect_config(player, id)
-      );
+    if (id !== "empty") {
+      if (icon) {
+        form.button(id, icon);
+      } else {
+        form.button(id);
+      }
+      actions.push(() => visual_command_effect_config(player, id));
     }
   });
 
   form.divider()
   form.button("");
   actions.push(() => {
+    if (anyPlayerHasEffect()) {
+      return visual_command_effect_select(player)
+    }
     return visual_command(player)
   });
 
@@ -1440,7 +1594,10 @@ function visual_command_effect_config(player, id) {
     if (!resp.formValues) return -1;
 
     let index = 0;
-    const targetName = (playerNames.length !== 1) ? resp.formValues[index++] : player.name;
+    const targetName = (playerNames.length !== 1)
+      ? playerNames[resp.formValues[index++]]
+      : player.name;
+
     const effectLevel = resp.formValues[index++];
     const duration = resp.formValues[index++];
     const disableDuration = resp.formValues[index++];
@@ -1454,7 +1611,8 @@ function visual_command_effect_config(player, id) {
     save_data[player_sd_index].quick_run
       ? execute_command(player, command, false)
       : command_menu(player, command);
-  });
+    });
+
 }
 
 
@@ -1940,13 +2098,13 @@ function dictionary_about_version(player) {
   let form = new ActionFormData()
   let actions = []
   let save_data = load_save_data()
-  let build_date = convertUnixToDate(version_info.unix, save_data[0].utc);
+  let build_date = convertUnixToDate(version_info.unix, save_data[0].utc || 0);
   form.title("About")
   form.body(
     "Name: " + version_info.name + "\n" +
     "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
-    (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : "Build date: " + `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
+    "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
 
     "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. All rights reserved."
   )
@@ -2492,13 +2650,13 @@ function settings_rights_data(viewing_player, selected_save_data) {
         form = new MessageFormData();
         form.title("Op advantages");
         form.body("Your are trying to add op advantages to "+selected_save_data.name+". With them he would be able to:\n\n- Run all kinds off command\n- Mange save data\n\nAre you sure you want to add them?\n ");
-        form.button1("");
-        form.button2("§aMake op");
+        form.button2("");
+        form.button1("§aMake op");
         form.show(viewing_player).then((response) => {
           if (response.selection == undefined ) {
             return -1
           }
-          if (response.selection == 1) {
+          if (response.selection == 0) {
             let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
             save_data[player_sd_index].op = true
             selected_save_data = save_data[player_sd_index]
@@ -2631,6 +2789,17 @@ async function update_loop() {
       gesture_nod()
       gesture_jump()
       gesture_emote()
+
+      let save_data = load_save_data();
+
+      world.getAllPlayers().forEach(player => {
+        let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+        // When a player's sd gets removed he will kick out of the game triggering this...
+        if (player_sd_index) {
+          save_data[player_sd_index].last_unix = Math.floor(Date.now() / 1000)
+          update_save_data(save_data);
+        }
+      });
 
       await system.waitTicks(1);
     }
