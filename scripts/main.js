@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.0.1",
-  build: "B015",
-  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751369360,
+  build: "B016",
+  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1751371358,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
