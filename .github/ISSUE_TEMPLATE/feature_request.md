@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for the timer
+about: Suggest an idea for the Com2Hard
 title: ''
 labels: enhancement
 assignees: 'TheFelixLive'

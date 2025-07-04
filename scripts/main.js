@@ -4,10 +4,10 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.2.0.1",
-  build: "B016",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751371358,
+  version: "v.2.2.0",
+  build: "B017",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1751634880,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   changelog: {
     // new_features
@@ -15,17 +15,10 @@ const version_info = {
     ],
     // general_changes
     general_changes: [
-      "Effects can now be cleared via. visual commands",
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug where unathenticated players were able open to the menu §oas Theproblem284 pointed out",
-      "Fixed a bug where the visual effect command was not working properly in multiplayer",
-      "Fixed a bug where the visual effect command applied a wrong effect to the selected player",
-      "Fixed a bug where some icons would load in the visual effect command",
-      "Fixed a bug where some information in the about menu was not displayed correctly",
-      "Fixed a bug where the 'last online' time was not updated correctly when the player left the world",
-
+      "Fixed a bug that could cause the HUD (hotbar, coordinates, etc.) to disappear"
     ]
   }
 }
@@ -659,17 +652,16 @@ function create_player_save_data(playerId, playerName) {
   print(`Save data for player ${playerName} updated.`);
 }
 
-world.afterEvents.playerJoin.subscribe(async({ playerId, playerName }) => {
+world.afterEvents.playerJoin.subscribe(({ playerId, playerName }) => {
   create_player_save_data(playerId, playerName);
+})
 
-  let player;
-  while (!player) {
-    player = world.getAllPlayers().find(player => player.id == playerId)
-    await system.waitTicks(1);
-  }
-  // I don't know why but in single player, the server is active about 60 ticks before the player of the server is reachable via getAllPlayers
+world.afterEvents.playerSpawn.subscribe(async (eventData) => {
+  const { player, initialSpawn } = eventData;
   let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  await system.waitTicks(40); // Wait for the player to be fully joined
 
   if (!world.isHardcore) {
     return player.sendMessage("§l§4[§cError§4]§r This world is not a hardcore world! Use the native Chat instead!")
