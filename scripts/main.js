@@ -4,17 +4,21 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.2.2.0",
-  build: "B017",
+  version: "v.2.1.0",
+  build: "B018",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751634880,
+  unix: 1751733329,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
+  uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
     ],
     // general_changes
     general_changes: [
+      "Added Multiple Menu Support",
+      "The menu no longer opens in non-hardcore worlds",
+      "Added UUID to the about page"
     ],
     // bug_fixes
     bug_fixes: [
@@ -475,33 +479,103 @@ let block_command_list = [
   Handshake with timer
 -------------------------*/
 
-let use_timer = false
+// 2 = Standalone, 1 = Multiple Menu: Host, 0 = Multiple Menu: Client
+let system_privileges = 2
 
-async function timer_handshake() {
-  await system.waitTicks(1);
-
-  print("Sending handshake!")
-  world.getDimension("overworld").runCommand("scriptevent timerv:api_client_mode")
-
-  await system.waitTicks(1);
-  try {
-    world.scoreboard.removeObjective("timer_handshake");
-    use_timer = true
-    print("Com2Hard: Handshake complete!");
-  } catch {
-    print("Handshake timeout!");
-  }
-
-}
-
-timer_handshake()
-
+/*------------------------
+  Client
+-------------------------*/
 
 system.afterEvents.scriptEventReceive.subscribe(event=> {
-  if (event.id === "timerv:api_menu_parent") {
-    return main_menu(event.sourceEntity)
+  if (event.id === "multiple_menu:initialize" && world.isHardcore) {
+    world.scoreboard.getObjective("multiple_menu_name").setScore(version_info.name, 1);
+    world.scoreboard.getObjective("multiple_menu_icon").setScore("textures/ui/hardcore/heart", 1);
+    world.scoreboard.getObjective("multiple_menu_id").setScore(version_info.uuid, 1);
+    if (system_privileges == 2) system_privileges = 0;
   }
+  if (event.id === "multiple_menu:open_main" && system_privileges == 1) {
+    multiple_menu(event.sourceEntity);
+  }
+
+  if (event.id === "multiple_menu:open_"+version_info.uuid && world.isHardcore) {
+    main_menu(event.sourceEntity);
+  }
+})
+
+
+/*------------------------
+  Host
+-------------------------*/
+let addon_name, addon_id, addon_icon;
+system.run(() => {
+  initialize_multiple_menu()
 });
+
+async function initialize_multiple_menu() {
+  if (!world.isHardcore) return system_privileges = 0
+  try {
+    world.scoreboard.addObjective("multiple_menu_name");
+    world.scoreboard.addObjective("multiple_menu_id");
+    world.scoreboard.addObjective("multiple_menu_icon");
+    print("Multiple Menu: Initializing Host");
+    system_privileges = 1;
+  } catch (e) {
+    print("Multiple Menu: Already Initialized");
+    return -1;
+  }
+
+
+  world.getDimension("overworld").runCommand("scriptevent multiple_menu:initialize");
+
+  await system.waitTicks(2);
+  print("Multiple Menu: successfully initialized as Host");
+
+  addon_name = world.scoreboard.getObjective("multiple_menu_name").getParticipants().map(p => p.displayName);
+  addon_id = world.scoreboard.getObjective("multiple_menu_id").getParticipants().map(p => p.displayName);
+  addon_icon = world.scoreboard.getObjective("multiple_menu_icon").getParticipants().map(p => p.displayName);
+
+  if (addon_id.length == 1) {
+    print("Multiple Menu: no other plugin found");
+    system_privileges = 2;
+  }
+
+  world.scoreboard.removeObjective("multiple_menu_name")
+  world.scoreboard.removeObjective("multiple_menu_id")
+  world.scoreboard.removeObjective("multiple_menu_icon")
+}
+
+function multiple_menu(player) {
+  let form = new ActionFormData();
+  let actions = [];
+
+  form.title("Multiple menu v.1.0");
+  form.body("Select an addon to open it's menu");
+
+  addon_name.forEach((name, index) => {
+    form.button(name, addon_icon[index]);
+
+    actions.push(() => {
+      player.runCommand("scriptevent multiple_menu:open_"+ addon_id[index]);
+    });
+  });
+  form.divider()
+  form.label("Settings")
+
+  form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+  actions.push(() => {
+    settings_gestures(player)
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
 
 /*------------------------
  Save Data
@@ -658,6 +732,7 @@ world.afterEvents.playerJoin.subscribe(({ playerId, playerName }) => {
 
 world.afterEvents.playerSpawn.subscribe(async (eventData) => {
   const { player, initialSpawn } = eventData;
+  if (!initialSpawn) return -1
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
@@ -686,7 +761,7 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
 
 
   // Update popup
-  if (save_data[player_sd_index].op && (Math.floor(Date.now() / 1000)) > save_data[0].update_message_unix) {
+  if (save_data[player_sd_index].op && (Math.floor(Date.now() / 1000)) > save_data[0].update_message_unix && system_privileges !== 0) {
     let form = new ActionFormData();
     form.title("Update time!");
     form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7"+links[0].link);
@@ -719,9 +794,9 @@ world.beforeEvents.itemUse.subscribe(event => {
 
   if (event.itemStack.typeId === "minecraft:stick" && save_data[idx].gesture.stick) {
       system.run(() => {
-        if (save_data[idx].op) {
+        if (save_data[idx].op && system_privileges !== 0) {
           event.source.playSound("random.pop2")
-          main_menu(event.source);
+          system_privileges == 1 ? multiple_menu(player) : main_menu(player);
         }
       });
   }
@@ -750,9 +825,9 @@ async function gesture_jump() {
     if (isSneaking && isJumping && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.sneak && save_data[idx].op) {
+      if (save_data[idx].gesture.sneak && save_data[idx].op && system_privileges !== 0) {
         player.playSound("random.pop2")
-        main_menu(player);
+        system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
 
       gestureCooldowns_jump.set(player.id, now);
@@ -787,9 +862,9 @@ async function gesture_emote() {
     if (isEmoting && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.emote && save_data[idx].op) {
+      if (save_data[idx].gesture.emote && save_data[idx].op && system_privileges !== 0) {
         player.playSound("random.pop2")
-        main_menu(player);
+        system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
 
       gestureCooldowns_emote.set(player.id, now);
@@ -824,9 +899,9 @@ async function gesture_nod() {
     else if (state === "lookingUp" && pitch > 13) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.nod && save_data[idx].op) {
+      if (save_data[idx].gesture.nod && save_data[idx].op && system_privileges !== 0) {
         player.playSound("random.pop2")
-        main_menu(player);
+        system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
 
       state = "idle";
@@ -877,32 +952,6 @@ function getRelativeTime(diff) {
     return `${minutes} minute${minutes > 1 ? 's' : ''}`;
   }
   return `a few seconds`;
-}
-
-
-function getBestPlayerName(save_data) {
-  const playerIds = world.getAllPlayers().map(player => player.id);
-  const candidates = save_data.filter(entry => entry.op === true);
-
-  const exactMatches = candidates.filter(entry => playerIds.includes(entry.id));
-  if (exactMatches.length > 0) {
-    return exactMatches[0].name;
-  }
-
-  const now = Date.now();
-  let best = candidates[0];
-  let bestDiff = Math.abs(best.last_unix * 1000 - now);
-
-  for (let i = 1; i < candidates.length; i++) {
-    const entry = candidates[i];
-    const diff = Math.abs(entry.last_unix * 1000 - now);
-    if (diff < bestDiff) {
-      best = entry;
-      bestDiff = diff;
-    }
-  }
-
-  return best.name;
 }
 
 
@@ -1197,19 +1246,18 @@ function main_menu(player) {
     }
   }
 
-  // Timer: menu
-  if (use_timer) {
-    form.button("Timer V", "textures/ui/timer");
-    actions.push(() => {
-      player.runCommand("/scriptevent timerv:api_menu")
-    });
-  }
-
   // Button: Settings
-  form.button(use_timer? "Settings\n(Com2Hard)" : "Settings", use_timer? "textures/ui/debug_glyph_color" : "textures/ui/automation_glyph_color");
+  form.button("Settings", "textures/ui/debug_glyph_color");
   actions.push(() => {
     settings_main(player);
   });
+
+  if (system_privileges !== 2) {
+    form.button("");
+    actions.push(() => {
+      player.runCommand("/scriptevent multiple_menu:open_main")
+    });
+  }
 
   form.show(player).then((response) => {
     if (response.selection === undefined) {
@@ -1917,10 +1965,12 @@ function settings_main(player) {
   });
 
   // Button 3: Gestures
-  form.button("Gestures", "textures/ui/sidebar_icons/emotes");
-  actions.push(() => {
-    settings_gestures(player)
-  });
+  if (system_privileges == 2) {
+    form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+    actions.push(() => {
+      settings_gestures(player)
+    });
+  }
 
   form.divider()
   form.label("Multiplayer");
@@ -2070,7 +2120,11 @@ function settings_gestures(player) {
   form.divider()
   form.button("");
   actions.push(() => {
-    settings_main(player);
+    if (system_privileges == 2) {
+      settings_main(player);
+    } else {
+      player.runCommand("scriptevent multiple_menu:open_main");
+    }
   });
 
   form.show(player).then(response => {
@@ -2096,6 +2150,7 @@ function dictionary_about_version(player) {
     "Name: " + version_info.name + "\n" +
     "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
+    "UUID: "+version_info.uuid + "\n" +
     "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
 
     "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. All rights reserved."
