@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.1.0",
-  build: "B018",
+  build: "B019",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751733329,
+  unix: 1751827571,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -22,7 +22,8 @@ const version_info = {
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug that could cause the HUD (hotbar, coordinates, etc.) to disappear"
+      "Fixed a bug that could cause the HUD (hotbar, coordinates, etc.) to disappear",
+      "Fixed a bug that caused a gap to appear at the beginning of the changelog"
     ]
   }
 }
@@ -2201,7 +2202,6 @@ function dictionary_contact(player, build_date) {
 
   let actions = []
   form.title("Contact")
-
   form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n");
 
   for (const entry of links) {
@@ -2239,50 +2239,45 @@ function dictionary_contact(player, build_date) {
 }
 
 function dictionary_about_version_changelog(player, build_date) {
-  let form = new ActionFormData()
-  form.title("Changelog - "+version_info.version)
+  const { new_features, general_changes, bug_fixes, unix } = version_info.changelog;
+  const sections = [
+    { title: "§l§bNew Features§r", items: new_features },
+    { title: "§l§aGeneral Changes§r", items: general_changes },
+    { title: "§l§cBug Fixes§r", items: bug_fixes }
+  ];
 
-  const { new_features, general_changes, bug_fixes } = version_info.changelog;
-  const hasNew     = new_features.length > 0;
-  const hasGeneral = general_changes.length > 0;
-  const hasBug     = bug_fixes.length > 0;
+  const form = new ActionFormData().title("Changelog - " + version_info.version);
 
-  // New Features
-  if (hasNew) {
-    form.label("§l§bNew Features§r\n");
-    new_features.forEach(feature => form.label(`- ${feature}\n`));
-    // only draw divider if there's another section after
-    if (hasGeneral || hasBug) form.divider();
+  let bodySet = false;
+  for (let i = 0; i < sections.length; i++) {
+    const { title, items } = sections[i];
+    if (items.length === 0) continue;
+
+    const content = title + "\n\n" + items.map(i => `- ${i}`).join("\n\n");
+
+    if (!bodySet) {
+      form.body(content);
+      bodySet = true;
+    } else {
+      form.label(content);
+    }
+
+    // Add divider if there's at least one more section with items
+    if (sections.slice(i + 1).some(s => s.items.length > 0)) {
+      form.divider();
+    }
   }
 
-  // General Changes
-  if (hasGeneral) {
-    form.label("§l§aGeneral Changes§r\n");
-    general_changes.forEach(change => form.label(`- ${change}\n`));
-    // only draw divider if Bug Fixes follow
-    if (hasBug) form.divider();
-  }
-
-  // Bug Fixes
-  if (hasBug) {
-    form.label("§l§cBug Fixes§r\n");
-    bug_fixes.forEach(fix => form.label(`- ${fix}\n`));
-  }
-
-
-  form.label(`§7As of ${build_date.day}.${build_date.month}.${build_date.year} (`+ getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix) + " ago)");
-
+  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
+  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - unix);
+  form.label(`§7As of ${dateStr} (${relative} ago)`);
   form.button("");
 
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (response.selection == 0) {
-      dictionary_about_version(player)
-    }
+  form.show(player).then(res => {
+    if (res.selection === 0) dictionary_about_version(player);
   });
 }
+
 
 
 
