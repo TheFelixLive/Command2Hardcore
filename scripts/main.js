@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.2.1.0",
-  build: "B019",
+  build: "B020",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751827571,
+  unix: 1751897705,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -22,7 +22,6 @@ const version_info = {
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug that could cause the HUD (hotbar, coordinates, etc.) to disappear",
       "Fixed a bug that caused a gap to appear at the beginning of the changelog"
     ]
   }
@@ -489,9 +488,8 @@ let system_privileges = 2
 
 system.afterEvents.scriptEventReceive.subscribe(event=> {
   if (event.id === "multiple_menu:initialize" && world.isHardcore) {
-    world.scoreboard.getObjective("multiple_menu_name").setScore(version_info.name, 1);
-    world.scoreboard.getObjective("multiple_menu_icon").setScore("textures/ui/hardcore/heart", 1);
-    world.scoreboard.getObjective("multiple_menu_id").setScore(version_info.uuid, 1);
+    world.scoreboard.getObjective("multiple_menu_name").setScore(version_info.uuid + "_" + version_info.name, 1);
+    world.scoreboard.getObjective("multiple_menu_icon").setScore(version_info.uuid + "_" + "textures/ui/hardcore/heart", 1);
     if (system_privileges == 2) system_privileges = 0;
   }
   if (event.id === "multiple_menu:open_main" && system_privileges == 1) {
@@ -516,7 +514,6 @@ async function initialize_multiple_menu() {
   if (!world.isHardcore) return system_privileges = 0
   try {
     world.scoreboard.addObjective("multiple_menu_name");
-    world.scoreboard.addObjective("multiple_menu_id");
     world.scoreboard.addObjective("multiple_menu_icon");
     print("Multiple Menu: Initializing Host");
     system_privileges = 1;
@@ -525,15 +522,15 @@ async function initialize_multiple_menu() {
     return -1;
   }
 
-
   world.getDimension("overworld").runCommand("scriptevent multiple_menu:initialize");
 
   await system.waitTicks(2);
   print("Multiple Menu: successfully initialized as Host");
 
-  addon_name = world.scoreboard.getObjective("multiple_menu_name").getParticipants().map(p => p.displayName);
-  addon_id = world.scoreboard.getObjective("multiple_menu_id").getParticipants().map(p => p.displayName);
-  addon_icon = world.scoreboard.getObjective("multiple_menu_icon").getParticipants().map(p => p.displayName);
+  const participants = world.scoreboard.getObjective("multiple_menu_name").getParticipants();
+  addon_id = participants.map(p => p.displayName.split("_")[0]);
+  addon_name = participants.map(p => p.displayName.split("_").slice(1).join("_"));
+  addon_icon = world.scoreboard.getObjective("multiple_menu_icon").getParticipants().map(p => p.displayName.split("_").slice(1).join("_"));
 
   if (addon_id.length == 1) {
     print("Multiple Menu: no other plugin found");
@@ -541,7 +538,6 @@ async function initialize_multiple_menu() {
   }
 
   world.scoreboard.removeObjective("multiple_menu_name")
-  world.scoreboard.removeObjective("multiple_menu_id")
   world.scoreboard.removeObjective("multiple_menu_icon")
 }
 
@@ -2154,7 +2150,7 @@ function dictionary_about_version(player) {
     "UUID: "+version_info.uuid + "\n" +
     "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
 
-    "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. All rights reserved."
+    "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. Licensed under the MIT License."
   )
 
   if (version_info.changelog.new_features.length > 0 || version_info.changelog.general_changes.length > 0 || version_info.changelog.bug_fixes.length > 0) {
