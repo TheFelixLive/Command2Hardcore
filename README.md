@@ -51,9 +51,9 @@ However, with the permission feature under settings, you can change this for eac
 
 # Multiple Menu
 This add-on supports multiple menus. But what does that actually mean?
-If you have at least two add-ons and want to open the menu, they will be displayed simultaneously. With multiple menu, the add-ons can communicate with each other, and only one menu will open. Just look for this icon: <img src="https://github.com/user-attachments/assets/43fc6418-62e1-424d-aeaa-424be79eff39" width="20" height="auto" />
+If you have at least two add-ons and want to open the menu, they will be displayed simultaneously. With multiple menu, the add-ons can communicate with each other, and only one menu will open. Just look for this icon: <img src="https://github.com/user-attachments/assets/d0c80d7c-e80b-41b1-934b-ee1dfc58d611" width="20" height="auto" />
 
-![Minecraft 07 07 2025 14_29_26](https://github.com/user-attachments/assets/99c7853d-ced4-4ddc-9280-112d37675118)
+![Minecraft 07 07 2025 14_29_26](https://github.com/user-attachments/assets/ab0a4f52-1f36-4758-b444-f440b154c365)
 
 > Was captured while the Timer and Command2Hard were active
 

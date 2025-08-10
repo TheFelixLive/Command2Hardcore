@@ -4,7 +4,7 @@
       "description": "Normally, you can't execute commands in hardcore mode. Not even if you explicitly want to! That's where this add-on comes in, allowing you to execute commands comfortably via a small detour!",
       "name": "Command2Hardcore",
       "uuid": "a9bdf889-7080-419c-b23c-adfc8704c4c1",
-      "version": [ 2, 1, 0],
+      "version": [ 3, 0, 0],
       "min_engine_version": [1, 21, 90]
   },
   "modules": [
