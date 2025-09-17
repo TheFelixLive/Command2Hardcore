@@ -1,36 +1,37 @@
-import { system, world, EntityTypes, EffectTypes } from "@minecraft/server";
+import { system, world, EntityTypes, EffectTypes, ItemTypes, EnchantmentTypes, WeatherType} from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 
 const version_info = {
   name: "Command2Hardcore",
-  version: "v.3.0.0",
-  build: "B021",
+  version: "v.4.0.0",
+  build: "B022",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1754828393,
+  unix: 1758137620,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
-      "Time zones can now be determined automatically",
-      "The About page got a redesigned"
+      "Achievements can now be earned with this add-on (thks. to Coolboyzay7 & Littlewolf_guy)",
     ],
     // general_changes
     general_changes: [
-      "Added multiple menu support for v.2.0",
-      "Changed some visual command icons",
-      "Changed catiguration in command history "
     ],
     // bug_fixes
     bug_fixes: [
-      "Permission should now work as intended",
-      "Fixed a bug that caused the changelog to always display \"a few seconds ago\"",
-      "Fixed a visual bug that caused empty categories to be displayed",
-      "Fixed a bug that prevented the menu from being opened via a stick"
+      "Fixed a bug where commmand didn't execute properly in multiplayer",
     ]
   }
 }
+
+console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
+
+
+/*------------------------
+  Internal lists
+-------------------------*/
+
 
 const links = [
   {name: "§l§5Github:§r", link: "github.com/TheFelixLive/Command2Hardcore"},
@@ -467,7 +468,221 @@ const entity_exceptionlist = {
   }
 }
 
-console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
+const gamerules = [
+  { key: "commandBlockOutput", type: "boolean", tooltip: "Command blocks output messages to operators." },
+  { key: "commandBlocksEnabled", type: "boolean", tooltip: "Command blocks are enabled." },
+  { key: "doDayLightCycle", type: "boolean", tooltip: "The daylight cycle progresses naturally." },
+  { key: "doEntityDrops", type: "boolean", tooltip: "Entities drop items when destroyed." },
+  { key: "doFireTick", type: "boolean", tooltip: "Fire spreads and extinguishes naturally." },
+  { key: "doImmediateRespawn", type: "boolean", tooltip: "Players respawn immediately without death screen." },
+  { key: "doInsomnia", type: "boolean", tooltip: "Phantoms spawn when players haven’t slept." },
+  { key: "doLimitedCrafting", type: "boolean", tooltip: "Only unlocked recipes can be crafted." },
+  { key: "doMobLoot", type: "boolean", tooltip: "Mobs drop loot on death." },
+  { key: "doMobSpawning", type: "boolean", tooltip: "Mobs spawn naturally." },
+  { key: "doTileDrops", type: "boolean", tooltip: "Blocks drop items when broken." },
+  { key: "doWeatherCycle", type: "boolean", tooltip: "Weather changes naturally." },
+
+  { key: "drowningDamage", type: "boolean", tooltip: "Players take damage from drowning." },
+  { key: "fallDamage", type: "boolean", tooltip: "Players take fall damage." },
+  { key: "fireDamage", type: "boolean", tooltip: "Players take damage from fire." },
+  { key: "freezeDamage", type: "boolean", tooltip: "Players take damage from freezing." },
+
+  { key: "functionCommandLimit", type: "numberText", tooltip: "Max number of commands a function can run." },
+
+  { key: "keepInventory", type: "boolean", tooltip: "Players keep inventory after death." },
+  { key: "maxCommandChainLength", type: "numberText", tooltip: "Maximum number of commands in a command chain." },
+
+  { key: "mobGriefing", type: "boolean", tooltip: "Mobs can modify the world (e.g., Creepers explode blocks)." },
+  { key: "naturalRegeneration", type: "boolean", tooltip: "Players regenerate health naturally." },
+
+  { key: "playersSleepingPercentage", type: "slider", min: 0, max: 100, step: 1, tooltip: "Percent of players required to sleep to skip the night." },
+
+  { key: "projectilesCanBreakBlocks", type: "boolean", tooltip: "Projectiles can break blocks." },
+  { key: "pvp", type: "boolean", tooltip: "Players can damage each other (PvP enabled)." },
+
+  { key: "randomTickSpeed", type: "slider", min: 0, max: 1000, step: 1, tooltip: "Rate of random ticks (affects growth, fire, etc.)." },
+
+  { key: "recipesUnlock", type: "boolean", tooltip: "Recipes unlock automatically as you progress." },
+  { key: "respawnBlocksExplode", type: "boolean", tooltip: "Respawn anchors explode when used improperly." },
+  { key: "sendCommandFeedback", type: "boolean", tooltip: "Feedback from commands appears in chat." },
+  { key: "showBorderEffect", type: "boolean", tooltip: "World border visual effect is visible." },
+  { key: "showCoordinates", type: "boolean", tooltip: "Displays coordinates in the HUD." },
+  { key: "showDaysPlayed", type: "boolean", tooltip: "Displays the number of in-game days played." },
+  { key: "showDeathMessages", type: "boolean", tooltip: "Death messages are displayed in chat." },
+  { key: "showRecipeMessages", type: "boolean", tooltip: "Recipe unlock messages are shown." },
+  { key: "showTags", type: "boolean", tooltip: "Entity tags are shown (debug)." },
+
+  { key: "spawnRadius", type: "slider", min: 0, max: 100, step: 1, tooltip: "Spawn radius from the world spawn point." },
+
+  { key: "tntExplodes", type: "boolean", tooltip: "TNT can explode." },
+  { key: "tntExplosionDropDecay", type: "boolean", tooltip: "Explosions reduce the amount of dropped items." }
+];
+
+const command_list = [
+  {
+    name: "give",
+    aliases: ["give"],
+    description: "Gives an item to a player",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/give" },
+          { type: "player", name: "target" },
+          { type: "item", name: "item" },
+          { type: "int", name: "count", optional: true },
+          { type: "components", name: "components", optional: true } // JSON / components string
+        ]
+      }
+    ]
+  },
+  {
+    name: "summon",
+    aliases: ["summon"],
+    description: "Summons an entity",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/summon" },
+          { type: "entityType", name: "entityType" },
+          { type: "coords", name: "pos", optional: true },
+          { type: "json", name: "components", optional: true }
+        ]
+      }
+    ]
+  },
+  {
+    name: "effect",
+    aliases: ["effect"],
+    description: "Add/remove potion effects",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/effect" },
+          { type: "player_or_selector", name: "target" },
+          { type: "effect", name: "effect" },
+          { type: "int", name: "seconds", optional: true },
+          { type: "int", name: "amplifier", optional: true },
+          { type: "bool", name: "hideParticles", optional: true }
+        ]
+      }
+    ]
+  },
+  {
+    name: "teleport",
+    aliases: ["teleport", "tp"],
+    description: "Teleport entity or player",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/teleport" },
+          { type: "selector_or_player", name: "target" },
+          { type: "coords_or_selector", name: "destination" }, // destination can be coords or another player
+          { type: "rest", name: "args", optional: true } // yaw, pitch, etc
+        ]
+      }
+    ]
+  },
+  {
+    name: "particle",
+    aliases: ["particle"],
+    description: "Spawn particle",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/particle" },
+          { type: "particle", name: "particleName" },
+          { type: "coords", name: "pos", optional: true },
+          { type: "anything", name: "args", optional: true }
+        ]
+      }
+    ]
+  },
+  {
+    name: "playsound",
+    aliases: ["playsound"],
+    description: "Play a sound",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/playsound" },
+          { type: "sound", name: "sound" },
+          { type: "selector_or_player", name: "targets", optional: true },
+          { type: "coords", name: "pos", optional: true },
+          { type: "float", name: "volume", optional: true },
+          { type: "float", name: "pitch", optional: true }
+        ]
+      }
+    ]
+  },
+  {
+    name: "tellraw",
+    aliases: ["tellraw"],
+    description: "Send JSON-formatted chat messages",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/tellraw" },
+          { type: "player_or_selector", name: "target" },
+          { type: "json", name: "json" }
+        ]
+      }
+    ]
+  },
+  {
+    name: "execute",
+    aliases: ["execute"],
+    description: "Run commands under specific conditions",
+    syntaxes: [
+      {
+        parts: [
+          { type: "literal", value: "/execute" },
+          { type: "rest", name: "subcommand_and_args" } // execute has very complicated sub-syntax — treat as rest and parse sub-clauses
+        ]
+      }
+    ]
+  },
+  {
+    name: "scoreboard",
+    aliases: ["scoreboard"],
+    description: "Manage scoreboards",
+    syntaxes: [
+      { parts: [{ type: "literal", value: "/scoreboard" }, { type: "anything", name: "args" }] }
+    ]
+  },
+  {
+    name: "setblock",
+    aliases: ["setblock"],
+    description: "Set block at coordinates",
+    syntaxes: [
+      { parts: [{ type: "literal", value: "/setblock" }, { type: "coords", name: "pos" }, { type: "block", name: "block" }, { type: "string", name: "mode", optional: true }] }
+    ]
+  },
+  {
+    name: "fill",
+    aliases: ["fill"],
+    description: "Fill area with blocks",
+    syntaxes: [
+      { parts: [{ type: "literal", value: "/fill" }, { type: "coords", name: "from" }, { type: "coords", name: "to" }, { type: "block", name: "block" }, { type: "string", name: "mode", optional: true }] }
+    ]
+  },
+  {
+    name: "give", // already present above but kept for completeness
+    aliases: ["give"],
+    description: "Give item",
+    syntaxes: [
+      { parts: [{ type: "literal", value: "/give" }, { type: "player", name: "player" }, { type: "item", name: "item" }, { type: "int", name: "count", optional: true }] }
+    ]
+  },
+  {
+    name: "weather",
+    aliases: ["weather"],
+    description: "Set or query the weather",
+    syntaxes: [
+      { parts: [{ type: "literal", value: "/weather" }, { type: "string", name: "type", optional: true }, { type: "int", name: "duration", optional: true }] }
+    ]
+  },
+  // ... du kannst hier weitere Commands nach Bedarf hinzufügen/feinjustieren
+];
 
 let block_command_list = [
   /* Legend:
@@ -498,7 +713,7 @@ let system_privileges = 2
 -------------------------*/
 
 system.afterEvents.scriptEventReceive.subscribe(async event=> {
-   if (event.id === "multiple_menu:data" && world.isHardcore) {
+   if (event.id === "multiple_menu:data" && (world.isHardcore || version_info.release_type == 0)) {
     let player = event.sourceEntity, data, scoreboard = world.scoreboard.getObjective("mm_data")
 
     // Reads data from the scoreboard
@@ -554,7 +769,7 @@ system.afterEvents.scriptEventReceive.subscribe(async event=> {
 let addon_list; // When initialized properly, it contains the data of all supported add-ons
 
 system.run(() => {
-  world.isHardcore? initialize_multiple_menu() : undefined
+  (world.isHardcore || version_info.release_type == 0)? initialize_multiple_menu() : undefined
 });
 
 async function initialize_multiple_menu() {
@@ -642,7 +857,7 @@ function multiple_menu(player) {
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {utc: undefined, utc_auto: true};
+  const default_save_data_structure = {utc: undefined, utc_auto: true, functions: []};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -716,10 +931,9 @@ function create_player_save_data(playerId, playerName) {
   let save_data = load_save_data();
 
   // Define the default structure for a new player's save data
-  const default_player_save_data_structure = (is_op_initial) => ({
+  const default_player_save_data_structure = () => ({
       id: playerId,
       name: playerName,
-      op: is_op_initial, // This will be determined when the player is first added
       last_unix: Math.floor(Date.now() / 1000),
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
@@ -751,18 +965,9 @@ function create_player_save_data(playerId, playerName) {
 
   if (player_sd_index === -1) {
       // Player does not exist, create new entry
-      let should_be_op = true;
+      print(`Player ${playerName} (${playerId}) added!`);
 
-      for (let entry of save_data) {
-          if (entry.op === true) {
-              should_be_op = false;
-              break;
-          }
-      }
-
-      print(`Player ${playerName} (${playerId}) added with op=${should_be_op}!`);
-
-      player_data = default_player_save_data_structure(should_be_op);
+      player_data = default_player_save_data_structure();
       save_data.push(player_data);
   } else {
       // Player exists, get their data
@@ -794,18 +999,18 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
 
   await system.waitTicks(40); // Wait for the player to be fully joined
 
-  if (!world.isHardcore) {
+  if (!(world.isHardcore || version_info.release_type == 0)) {
     return player.sendMessage("§l§4[§cError§4]§r This world is not a hardcore world! Use the native Chat instead!")
   }
 
-  if (version_info.release_type !== 2 && save_data[player_sd_index].op) {
+  if (version_info.release_type !== 2 && player.playerPermissionLevel === 2) {
     player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §l"+links[0].link)
     player.playSound("random.pop")
   }
 
   // Help reminder: how to open the menu
   if (save_data[player_sd_index].last_unix == undefined || save_data[player_sd_index].last_unix > (Math.floor(Date.now() / 1000) + 604800)) {
-    if (save_data[player_sd_index].op) {
+    if (player.playerPermissionLevel === 2) {
       player.sendMessage("§l§6[§eHelp§6]§r You can always open the menu with the sneak-jump (or in spectator with the nod) gesture or with a stick")
       player.playSound("random.pop")
     }
@@ -959,6 +1164,766 @@ function print(input) {
   if (version_info.release_type === 0) {
     console.log(version_info.name + " - " + JSON.stringify(input))
   }
+}
+
+function markdownToMinecraft(md) {
+  if (typeof md !== 'string') return '';
+
+  // normalize newlines
+  md = md.replace(/\r\n?/g, '\n');
+
+  const UNSUPPORTED_MSG = '§o§7Tabelles are not supported! Visit GitHub for this.';
+
+  // helper: map admonition type -> minecraft color code (choose sensible defaults)
+  function admonColor(type) {
+    const t = (type || '').toLowerCase();
+    if (['caution', 'warning', 'danger', 'important'].includes(t)) return '§c'; // red
+    if (['note', 'info', 'tip', 'hint'].includes(t)) return '§b'; // aqua
+    return '§e'; // fallback: yellow
+  }
+
+  // inline processor (handles code spans first, then bold/italic/strike, links/images, etc.)
+  function processInline(text) {
+    if (!text) return '';
+
+    // tokenise code spans to avoid further processing inside them
+    const tokens = [];
+    text = text.replace(/(`+)([\s\S]*?)\1/g, (m, ticks, code) => {
+      const safe = code.replace(/\n+/g, ' '); // inline code -> single line
+      const repl = '§7' + safe + '§r';
+      tokens.push(repl);
+      return `__MD_TOKEN_${tokens.length - 1}__`;
+    });
+
+    // images -> unsupported (replace whole image with message)
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, () => UNSUPPORTED_MSG);
+
+    // links -> keep link text only (no URL)
+    text = text.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
+
+    // bold: **text** or __text__ -> §ltext§r
+    text = text.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '§l$2§r');
+
+    // italic: *text* or _text_ -> §otext§r
+    // (do after bold so that **...** won't be partially matched)
+    text = text.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, '§o$2§r');
+
+    // strikethrough: ~~text~~ -> use italic+gray as fallback (no §m)
+    text = text.replace(/~~([\s\S]*?)~~/g, '§o§7$1§r');
+
+    // simple HTML tags or raw tags -> treat as unsupported (avoid exposing markup)
+    if (/<\/?[a-z][\s\S]*?>/i.test(text)) return UNSUPPORTED_MSG;
+
+    // restore code tokens
+    text = text.replace(/__MD_TOKEN_(\d+)__/g, (m, idx) => tokens[Number(idx)] || '');
+
+    return text;
+  }
+
+  // 1) Replace fenced code blocks (```...```) with unsupported message
+  md = md.replace(/```[\s\S]*?```/g, () => UNSUPPORTED_MSG);
+
+  // 2) Replace GitHub-style admonition blocks: ::: type\n...\n:::
+  md = md.replace(/::: *([A-Za-z0-9_-]+)\s*\n([\s\S]*?)\n:::/gmi, (m, type, content) => {
+    // flatten content lines, then process inline inside
+    const inner = processInline(content.replace(/\n+/g, ' ').trim());
+    const cap = type.charAt(0).toUpperCase() + type.slice(1);
+    return `§l${admonColor(type)}${cap}: ${inner}§r`;
+  });
+
+  // now process line-by-line for tables / headings / lists / blockquotes / admonitions-as-blockquotes
+  const lines = md.split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // trim trailing CR/ spaces
+    const raw = line;
+
+    //  ---- detect table: a row with '|' and a following separator row like "| --- | --- |" or "---|---"
+    const nextLine = lines[i + 1] || '';
+    const isTableRow = /\|/.test(line);
+    const nextIsSeparator = /^\s*\|?[:\-\s|]+$/.test(nextLine);
+    if (isTableRow && nextIsSeparator) {
+      // consume all contiguous table rows
+      out.push(UNSUPPORTED_MSG);
+      i++; // skip the separator
+      while (i + 1 < lines.length && /\|/.test(lines[i + 1])) i++;
+      continue;
+    }
+
+    //  ---- headings (#, ##, ###) -> §l + content + §r + \n
+    const hMatch = line.match(/^(#{1,3})\s*(.*)$/);
+    if (hMatch) {
+      const content = hMatch[2].trim();
+      out.push('§l' + processInline(content) + '§r\n');
+      continue;
+    }
+
+    //  ---- GitHub-style single-line admonition in > or plain "Caution: ..." at line start
+    const admonLineMatch = raw.match(/^\s*(?:>\s*)?(?:\*\*)?(Caution|Warning|Note|Tip|Important|Danger|Info)(?:\*\*)?:\s*(.+)$/i);
+    if (admonLineMatch) {
+      const type = admonLineMatch[1];
+      const content = admonLineMatch[2].trim();
+      out.push(`§l${admonColor(type)}${type}: ${processInline(content)}§r`);
+      continue;
+    }
+
+    //  ---- blockquote lines starting with '>'
+    if (/^\s*>/.test(line)) {
+      const content = line.replace(/^\s*>+\s?/, '');
+      out.push('§o' + processInline(content) + '§r');
+      continue;
+    }
+
+    //  ---- images or html inline -> unsupported
+    if (/^!\[.*\]\(.*\)/.test(line) || /<[^>]+>/.test(line)) {
+      out.push(UNSUPPORTED_MSG);
+      continue;
+    }
+
+    //  ---- unordered list (-, *, +) -> bullet + inline
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const item = line.replace(/^\s*[-*+]\s+/, '');
+      out.push('• ' + processInline(item));
+      continue;
+    }
+
+    //  ---- ordered list (1. 2. ...) -> bullet as well
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const item = line.replace(/^\s*\d+\.\s+/, '');
+      out.push('• ' + processInline(item));
+      continue;
+    }
+
+    //  ---- default: process inline formatting
+    // empty line -> keep empty
+    if (line.trim() === '') {
+      out.push('');
+      continue;
+    }
+
+    out.push(processInline(line));
+  }
+
+  // join with newline and return
+  return out.join('\n');
+}
+
+function toRoman(num) {
+  if (num <= 0 || num >= 4000) return ""; // Römer nutzten keine 0 oder Zahlen >= 4000
+
+  const romanNumerals = [
+    ["M", 1000],
+    ["CM", 900],
+    ["D", 500],
+    ["CD", 400],
+    ["C", 100],
+    ["XC", 90],
+    ["L", 50],
+    ["XL", 40],
+    ["X", 10],
+    ["IX", 9],
+    ["V", 5],
+    ["IV", 4],
+    ["I", 1]
+  ];
+
+  let result = "";
+  for (const [roman, value] of romanNumerals) {
+    while (num >= value) {
+      result += roman;
+      num -= value;
+    }
+  }
+  return result;
+}
+
+function humanizeId(id) {
+  if (!id) return "";
+  // id wie "bane_of_arthropods" -> "Bane of Arthropods"
+  const smallWords = new Set(["of","the","and","to","in","by","for","on","with","a","an","or"]);
+  const parts = id.replace(/^minecraft:/, "").split("_");
+  const words = parts.map((w, idx) => {
+    w = w.toLowerCase();
+    if (idx > 0 && smallWords.has(w)) return w; // keep small words lowercase (except first)
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  });
+  return words.join(" ");
+}
+
+function areEnchantmentsIncompatible(item, e1, e2) {
+  if (!item) return false;
+  try {
+    // Clone the item so we don't change the real one
+    const copy = item.clone();
+    const enchComp = copy.getComponent("minecraft:enchantable");
+    if (!enchComp) return false;
+
+    // erst e1 hinzufügen (Level 1 zum Test)
+    try {
+      enchComp.addEnchantment({ type: e1, level: 1 });
+    } catch (errAdd) {
+      // wenn addEnchantment für e1 schon fehlschlägt: dann behandeln wir es als inkompatibel
+      // (sollte aber nicht passieren, weil e1 aus kompatiblen Enchants stammt)
+      return true;
+    }
+
+    // jetzt prüfen ob e2 noch geht
+    try {
+      const ok = enchComp.canAddEnchantment({ type: e2, level: 1 });
+      return !ok;
+    } catch (err) {
+      // Wenn canAddEnchantment eine Exception wirft, behandeln wir das als inkompatibel
+      return true;
+    }
+  } catch (err) {
+    // Bei unerwarteten Fehlern: konservativ annehmen, dass inkompatibel
+    return true;
+  }
+}
+
+function buildEnchantmentCategories(item, compatibleEnchants) {
+  const n = compatibleEnchants.length;
+  const adj = Array.from({ length: n }, () => []);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (areEnchantmentsIncompatible(item, compatibleEnchants[i], compatibleEnchants[j])) {
+        adj[i].push(j);
+        adj[j].push(i);
+      }
+    }
+  }
+
+  // connected components
+  const seen = new Array(n).fill(false);
+  const comps = [];
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    const stack = [i];
+    const comp = [];
+    seen[i] = true;
+    while (stack.length) {
+      const u = stack.pop();
+      comp.push(compatibleEnchants[u]);
+      for (const v of adj[u]) {
+        if (!seen[v]) {
+          seen[v] = true;
+          stack.push(v);
+        }
+      }
+    }
+    comps.push(comp);
+  }
+  return comps;
+}
+
+let currentWeather = WeatherType.Clear;
+
+world.afterEvents.weatherChange.subscribe(ev => {
+  currentWeather = ev.newWeather;
+});
+
+/*------------------------
+ Command fixing helpers
+-------------------------*/
+
+function levenshtein(a = "", b = "") {
+  a = String(a);
+  b = String(b);
+  const al = a.length, bl = b.length;
+  if (al === 0) return bl;
+  if (bl === 0) return al;
+  const dp = Array.from({ length: al + 1 }, () => Array(bl + 1).fill(0));
+  for (let i = 0; i <= al; i++) dp[i][0] = i;
+  for (let j = 0; j <= bl; j++) dp[0][j] = j;
+  for (let i = 1; i <= al; i++) {
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[al][bl];
+}
+
+function fuzzyBest(input, candidates = [], maxAcceptDist = 2, relThresh = 0.4) {
+  input = String(input || "").toLowerCase();
+  let best = { cand: null, dist: Infinity };
+  for (const c of candidates) {
+    const cLower = String(c).toLowerCase();
+    const d = levenshtein(input, cLower);
+    if (d < best.dist) best = { cand: c, dist: d };
+  }
+  if (!best.cand) return { accept: false, best: null, suggestions: [] };
+  const rel = best.dist / Math.max(input.length, String(best.cand).length, 1);
+  const accept = best.dist <= maxAcceptDist || rel <= relThresh;
+  // also prepare top 3 suggestions
+  const scored = candidates.map(c => ({ c, d: levenshtein(input, String(c).toLowerCase()) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 3)
+    .map(x => x.c);
+  return { accept, best: best.cand, dist: best.dist, rel, suggestions: scored };
+}
+
+function splitArgsPreserveJSON(str) {
+  // Split on whitespace but preserve quoted strings, {...} JSON and [...] selector brackets
+  // Approach: walk char-by-char, track stack for quotes/braces/brackets
+  const out = [];
+  let cur = "";
+  const stack = [];
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    const top = stack[stack.length - 1];
+    if (ch === '"' || ch === "'") {
+      if (top && top.type === "quote" && top.char === ch) {
+        // close quote
+        stack.pop();
+        cur += ch;
+      } else if (!top || top.type !== "quote") {
+        // open quote
+        stack.push({ type: "quote", char: ch });
+        cur += ch;
+      } else {
+        cur += ch;
+      }
+    } else if ((ch === "{" || ch === "[") && (!top || top.type !== "quote")) {
+      stack.push({ type: ch === "{" ? "brace" : "bracket", char: ch });
+      cur += ch;
+    } else if ((ch === "}" || ch === "]") && (!top || top.type !== "quote")) {
+      // pop matching
+      if (stack.length && ((ch === "}" && stack[stack.length - 1].type === "brace") || (ch === "]" && stack[stack.length - 1].type === "bracket"))) {
+        stack.pop();
+        cur += ch;
+      } else {
+        // unmatched - still append
+        cur += ch;
+      }
+    } else if (/\s/.test(ch) && stack.length === 0) {
+      if (cur.length) { out.push(cur); cur = ""; }
+      // skip extra spaces
+      while (i + 1 < str.length && /\s/.test(str[i + 1])) i++;
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+function tryMatchItemType(token) {
+  // token like "minecraft:diamond_sword" or "diamond_sword"
+  try {
+    if (typeof ItemTypes !== "undefined" && ItemTypes && typeof ItemTypes.getAll() === "function") {
+      // try with and without minecraft: prefix
+      const candidates = [
+        token,
+        token.startsWith("minecraft:") ? token : `minecraft:${token}`
+      ];
+      for (const c of candidates) {
+        try {
+          const it = ItemTypes.getAll(c);
+          if (it) return c; // return canonical string we tested
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function tryMatchEntityType(token) {
+  try {
+    if (typeof EntityTypes !== "undefined" && EntityTypes && typeof EntityTypes.getAll() === "function") {
+      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
+      for (const c of candidates) {
+        try {
+          const et = EntityTypes.get(c);
+          if (et) return c;
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function tryMatchEffectType(token) {
+  try {
+    if (typeof EffectTypes !== "undefined" && EffectTypes && typeof EffectTypes.getAll() === "function") {
+      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
+      for (const c of candidates) {
+        try {
+          const ef = EffectTypes.getAll(c);
+          if (ef) return c;
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function tryMatchEnchantment(token) {
+  try {
+    if (typeof EnchantmentTypes !== "undefined" && EnchantmentTypes && typeof EnchantmentTypes.getAll() === "function") {
+      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
+      for (const c of candidates) {
+        try {
+          const en = EnchantmentTypes.getAll(c);
+          if (en) return c;
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+
+///////////////////////
+// Selector parsing & correction
+///////////////////////
+
+const VALID_SELECTOR_KEYS = [
+  "name","type","tag","team","scores","limit","c","sort",
+  "x","y","z","dx","dy","dz","distance","distance","distance_min","distance_max",
+  "r","rm","distance","distance","family"
+]; // common possible keys — fuzzy corrected
+
+function parseSelector(token) {
+  // token examples:
+  // "@p", "@a[r=5]", "@e[type=minecraft:zombie,limit=3,name=\"Timmy\"]"
+  const m = token.match(/^@([pares])(?:\[(.*)\])?$/i);
+  if (!m) return null;
+  const at = m[0]; // full
+  const selectorType = m[1]; // p,a,r,e,s
+  const body = m[2]; // inner
+  const parsed = { raw: token, type: selectorType, args: {} };
+  if (!body) return parsed;
+
+  // split body by commas not in quotes
+  const parts = [];
+  let cur = "";
+  let inQuote = false;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === '"' || ch === "'") {
+      inQuote = !inQuote;
+      cur += ch;
+    } else if (ch === ',' && !inQuote) {
+      parts.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.length) parts.push(cur);
+
+  for (const p of parts) {
+    const eqIdx = p.indexOf("=");
+    if (eqIdx === -1) {
+      // key only? treat as boolean flag
+      const key = p.trim();
+      parsed.args[key] = true;
+      continue;
+    }
+    const key = p.slice(0, eqIdx).trim();
+    let val = p.slice(eqIdx + 1).trim();
+    // strip quotes if present
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    parsed.args[key] = val;
+  }
+  return parsed;
+}
+
+function fixSelector(parsed) {
+  // parsed: returned from parseSelector
+  if (!parsed) return { fixed: null, corrections: [] };
+  const corrections = [];
+  const fixedArgs = {};
+  // correct each key fuzzy
+  const keys = Object.keys(parsed.args);
+  for (const key of keys) {
+    const val = parsed.args[key];
+    const keyCand = fuzzyBest(key, VALID_SELECTOR_KEYS, 2, 0.4);
+    let finalKey = key;
+    if (keyCand.accept && keyCand.best) {
+      if (keyCand.best !== key) {
+        corrections.push({ kind: "selector_key", from: key, to: keyCand.best });
+        finalKey = keyCand.best;
+      }
+    }
+    // value corrections depending on key
+    let finalVal = val;
+    if (finalKey === "type") {
+      // try entity type match
+      const matched = tryMatchEntityType(val) || fuzzyBest(val, Object.keys(EntityTypes || {})).best;
+      if (matched && matched !== val) {
+        corrections.push({ kind: "selector_value", key: finalKey, from: val, to: matched });
+        finalVal = matched;
+      }
+    } else if (finalKey === "name") {
+      // ensure it is quoted in final string (value itself kept as-is)
+      if (typeof finalVal === "string" && !/^".*"$/i.test(finalVal)) {
+        // we'll quote when building string; keep value
+      }
+    } else if (["r","rm","limit","c","dx","dy","dz","x","y","z","distance"].includes(finalKey)) {
+      // numeric expected
+      const parsedNum = Number(finalVal);
+      if (isNaN(parsedNum)) {
+        // attempt to strip non-numeric chars
+        const digits = (String(finalVal).match(/-?\d+(\.\d+)?/) || [null])[0];
+        if (digits) {
+          corrections.push({ kind: "selector_value_numeric_fix", key: finalKey, from: finalVal, to: digits });
+          finalVal = digits;
+        }
+      }
+    } else if (finalKey === "tag") {
+      // tag strings commonly simple; keep
+    } else if (finalKey === "scores") {
+      // scores can be complex JSON-like; keep
+    }
+    fixedArgs[finalKey] = finalVal;
+  }
+
+  // build selector string back
+  const parts = [];
+  for (const k of Object.keys(fixedArgs)) {
+    let v = fixedArgs[k];
+    // quote name/tag values containing non-word chars
+    if (typeof v === "string" && (v.includes(" ") || /[^A-Za-z0-9_.:-]/.test(v))) {
+      v = `"${v}"`;
+    }
+    parts.push(`${k}=${v}`);
+  }
+  const inner = parts.join(",");
+  const final = inner.length ? `@${parsed.type}[${inner}]` : `@${parsed.type}`;
+  return { fixed: final, corrections };
+}
+
+function normalizeCommandName(candidate) {
+  // remove leading slash and toLower
+  return candidate.startsWith("/") ? candidate.slice(1).toLowerCase() : candidate.toLowerCase();
+}
+
+function buildCandidatesList() {
+  const candidates = [];
+  for (const cmd of command_list) {
+    candidates.push(cmd.name.toLowerCase());
+    if (Array.isArray(cmd.aliases)) for (const a of cmd.aliases) candidates.push(a.toLowerCase());
+  }
+  return [...new Set(candidates)];
+}
+
+function fixSubArgsAccordingToCmd(cmdDef, restTokens) {
+  // If no definition or definition has a single 'rest' argument, try generic fixes:
+  const corrections = [];
+  if (!cmdDef || !cmdDef.syntaxes || cmdDef.syntaxes.length === 0) {
+    // attempt generic selector + json fixes across tokens
+    const fixedTokens = restTokens.map(t => {
+      if (/^@/.test(t)) {
+        const parsed = parseSelector(t);
+        if (parsed) {
+          const f = fixSelector(parsed);
+          if (f.corrections.length) corrections.push(...f.corrections);
+          return f.fixed;
+        }
+      }
+      return t;
+    });
+    return { fixedArgsString: fixedTokens.join(" "), corrections };
+  }
+
+  // Use the first syntax variant for matching (could be improved by picking the best matching variant)
+  const parts = cmdDef.syntaxes[0].parts;
+  const outParts = [];
+  let rtIdx = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.type === "literal") {
+      // not present in rest tokens (literal is the command itself) — skip
+      continue;
+    }
+    if (part.type === "rest" || part.type === "anything" || part.type === "components" || part.type === "json") {
+      // consume remaining tokens and join
+      const remaining = restTokens.slice(rtIdx);
+      if (remaining.length) {
+        // if json, don't touch; if components, keep intact; else attempt selectors inside
+        const joined = remaining.join(" ");
+        // try to parse selectors inside joined if present
+        // simple approach: replace any @... occurrences with fixed versions
+        const replaced = joined.replace(/@([pares])(?:\[(?:[^\]]*)\])?/ig, (m) => {
+          const parsed = parseSelector(m);
+          if (!parsed) return m;
+          const f = fixSelector(parsed);
+          if (f.corrections.length) corrections.push(...f.corrections);
+          return f.fixed;
+        });
+        outParts.push(replaced);
+      }
+      rtIdx = restTokens.length;
+      break; // rest consumes everything
+    }
+
+    // normal single-arg parts
+    const token = restTokens[rtIdx];
+    if (token === undefined) {
+      if (part.optional) {
+        continue;
+      } else {
+        // missing required arg
+        break;
+      }
+    }
+    // handle by part.type
+    if (part.type === "player" || part.type === "player_or_selector" || part.type === "selector_or_player") {
+      if (/^@/.test(token)) {
+        const parsed = parseSelector(token);
+        if (parsed) {
+          const f = fixSelector(parsed);
+          if (f.corrections.length) corrections.push(...f.corrections);
+          outParts.push(f.fixed);
+        } else {
+          outParts.push(token);
+        }
+      } else {
+        // try to check in-game players if possible
+        let finalName = token;
+        try {
+          if (typeof world !== "undefined" && world && typeof world.getPlayers === "function") {
+            const players = world.getPlayers();
+            // collect player names
+            const names = [];
+            for (const p of players) {
+              try { names.push(p.name); } catch(e) {}
+            }
+            const pMatch = fuzzyBest(token, names, 2, 0.33);
+            if (pMatch.accept && pMatch.best !== token) {
+              corrections.push({ kind: "player_name", from: token, to: pMatch.best });
+              finalName = pMatch.best;
+            }
+          } else {
+            // fallback: keep as-is
+            finalName = token;
+          }
+        } catch (e) {
+          finalName = token;
+        }
+        outParts.push(finalName);
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "item") {
+      // try script API ItemTypes
+      const matched = tryMatchItemType(token);
+      if (matched) {
+        if (matched !== token) corrections.push({ kind: "item", from: token, to: matched });
+        outParts.push(matched);
+      } else {
+        // fuzzy fallback: if token lacks prefix, try adding minecraft:
+        const fallback = token.startsWith("minecraft:") ? token : `minecraft:${token}`;
+        outParts.push(fallback);
+        if (fallback !== token) corrections.push({ kind: "item_fallbackprefix", from: token, to: fallback });
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "entityType") {
+      const matched = tryMatchEntityType(token);
+      if (matched) {
+        if (matched !== token) corrections.push({ kind: "entity", from: token, to: matched });
+        outParts.push(matched);
+      } else {
+        outParts.push(token);
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "effect") {
+      const matched = tryMatchEffectType(token);
+      if (matched) {
+        if (matched !== token) corrections.push({ kind: "effect", from: token, to: matched });
+        outParts.push(matched);
+      } else {
+        outParts.push(token);
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "enchantment") {
+      const matched = tryMatchEnchantment(token);
+      if (matched) {
+        if (matched !== token) corrections.push({ kind: "enchantment", from: token, to: matched });
+        outParts.push(matched);
+      } else {
+        outParts.push(token);
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "particle" || part.type === "sound" || part.type === "block") {
+      // best-effort: if value contains colon, keep; else add minecraft: prefix
+      if (!token.includes(":")) {
+        const withPref = `minecraft:${token}`;
+        outParts.push(withPref);
+        corrections.push({ kind: part.type + "_prefix", from: token, to: withPref });
+      } else {
+        outParts.push(token);
+      }
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "coords") {
+      // coords may be absolute numbers or ~ relative; accept token as-is (but can attempt to validate)
+      outParts.push(token);
+      rtIdx++;
+      continue;
+    }
+
+    if (part.type === "int" || part.type === "float") {
+      // validate or coerce
+      const n = Number(token);
+      if (isNaN(n)) {
+        // try to extract number
+        const found = (String(token).match(/-?\d+(\.\d+)?/) || [null])[0];
+        if (found !== null) {
+          corrections.push({ kind: "num_coerce", from: token, to: found });
+          outParts.push(found);
+        } else {
+          outParts.push(token);
+        }
+      } else {
+        outParts.push(String(n));
+      }
+      rtIdx++;
+      continue;
+    }
+
+    // default
+    outParts.push(token);
+    rtIdx++;
+  }
+
+  // if leftover tokens not consumed, append them (but try to fix any selectors in them)
+  if (rtIdx < restTokens.length) {
+    const leftover = restTokens.slice(rtIdx).join(" ");
+    const replacedLeftover = leftover.replace(/@([pares])(?:\[(?:[^\]]*)\])?/ig, (m) => {
+      const parsed = parseSelector(m);
+      if (!parsed) return m;
+      const f = fixSelector(parsed);
+      if (f.corrections.length) corrections.push(...f.corrections);
+      return f.fixed;
+    });
+    outParts.push(replacedLeftover);
+  }
+
+  return { fixedArgsString: outParts.join(" "), corrections };
 }
 
 /*------------------------
@@ -1287,10 +2252,8 @@ function offsetToDecimal(offsetStr) {
 
 function anyPlayerHasEffect() {
   for (const player of world.getAllPlayers()) {
-    for (const effectType of EffectTypes.getAll()) {
-      if (player.getEffect(effectType)) {
-        return true;
-      }
+    if (player.getEffects().length > 0) {
+      return true;
     }
   }
   return false;
@@ -1308,6 +2271,41 @@ function highlightErrorInCommand(command, errorSnippet) {
   return command.replace(errorSnippet, highlightedSnippet);
 }
 
+function getCompatibleEnchantmentTypes(item) {
+  if (!item) return [];
+
+  // Enchantable-Component (gibt undefined wenn nicht vorhanden)
+  let enchantable;
+  try {
+    enchantable = item.getComponent("minecraft:enchantable");
+  } catch (err) {
+    // Falls getComponent selbst Fehler wirft (selten): keine kompatiblen Enchants
+    return [];
+  }
+
+  if (!enchantable) return [];
+
+  // Alle EnchantmentTypes holen und sortieren (optional)
+  const all = EnchantmentTypes.getAll().sort((a, b) => a.id.localeCompare(b.id));
+  const compatible = [];
+
+  for (const e of all) {
+    try {
+      // Test-Objekt: als 'type' das EnchantmentType-Objekt, level 1 verwenden
+      const testEnchantment = { type: e, level: 1 };
+
+      // canAddEnchantment kann Exceptions werfen (unknown id, level oob) — deshalb try/catch
+      if (enchantable.canAddEnchantment(testEnchantment)) {
+        compatible.push(e);
+      }
+    } catch (err) {
+      // still ignore: wenn canAddEnchantment scheitert, ist das Enchant unbrauchbar für dieses Item
+      // optional: world.say / console.warn für Debugging
+    }
+  }
+
+  return compatible;
+}
 
 
 
@@ -1333,20 +2331,12 @@ function main_menu(player) {
     form.divider();
   }
 
-  // Button: Commands
+  form.label("Functions");
+  form.label("§7Comming soon")
+  form.divider();
 
-  if (world.isHardcore && save_data[player_sd_index].op) {
-    form.button("Run GUI command §9[NEW]", "textures/ui/controller_glyph_color_switch");
-    actions.push(() => {
-      visual_command(player);
-    });
-
-    form.button("Run chat command", "textures/ui/chat_send");
-    actions.push(() => {
-      command_menu(player);
-    });
-
-    form.divider()
+  // Button: Commands & History
+  if ((world.isHardcore || version_info.release_type == 0) && player.playerPermissionLevel === 2) {
     if (save_data[player_sd_index].command_history.length !== 0) {
       form.label("Most recently used commands")
     }
@@ -1382,6 +2372,11 @@ function main_menu(player) {
     if (save_data[player_sd_index].command_history.length !== 0) {
       form.divider()
     }
+
+    form.button("Visual commands", "textures/ui/controller_glyph_color_switch");
+    actions.push(() => {
+      visual_command(player);
+    });
   }
 
   // Button: Settings
@@ -1448,7 +2443,7 @@ function search_menu_result(player, search_results, search_term) {
 
   form.label("Permission - 1")
 
-  form.button(player.name+"\n§o[...] "+search_term+" [...]", save_data[player_sd_index].op? "textures/ui/op" : "textures/ui/permissions_member_star"); // "search_term" here shut be prof rather the actuel term
+  form.button(player.name+"\n§o[...] "+search_term+" [...]", player.playerPermissionLevel === 2? "textures/ui/op" : "textures/ui/permissions_member_star"); // "search_term" here shut be prof rather the actuel term
   actions.push(() => {
     settings_rights_data(player, save_data[player_sd_index])
   });
@@ -1485,68 +2480,6 @@ function search_menu_result(player, search_results, search_term) {
 /*------------------------
  Enter Command
 -------------------------*/
-
-function command_menu(player, command) {
-  let form = new ModalFormData();
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
-  const playerNames = ["Server", ...world.getAllPlayers().map(p => p.name)];
-  if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
-
-  form.title("Command");
-  form.textField('Command', 'e.g. /say hallo world!', {defaultValue: command});
-  form.dropdown('Execute by', playerNames, {defaultValueIndex: playerNames.indexOf(player.name), tooltip: "If you select other players it will run also at that location.\n§7§oNote: The Server doesn't have some properties!"});
-
-  form.show(player).then(response => {
-    if (response.canceled) return -1;
-    if (!response.formValues[0]) return main_menu(player);
-
-    let cmd = response.formValues[0].startsWith("/") ? response.formValues[0] : "/" + response.formValues[0];
-    const byServer = response.formValues[1] === 0;
-
-    let matchedBlock = null;
-    for (const block of block_command_list) {
-      if (cmd.toLowerCase().includes(block.command_prefix.toLowerCase())) {
-        if (!matchedBlock || block.command_prefix.length > matchedBlock.command_prefix.length) {
-          matchedBlock = block;
-        }
-      }
-    }
-
-    if (matchedBlock) {
-      let form = new MessageFormData();
-      let actions = [];
-      form.title("Warning");
-      form.body(
-        matchedBlock.rating === 1
-          ? `The §l/${matchedBlock.command_prefix}§r command behaves differently than expected in §chardcore mode§r.\n\nDo you want to run it anyways?`
-          : matchedBlock.rating === 2
-            ? `The /${matchedBlock.command_prefix}§r command will most likely §4§llose your hardcore world!§r\n\nDo you really want that?`
-            : ""
-      );
-
-      if (matchedBlock.rating > 0) {
-        form.button1(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
-        actions.push(() => {
-          return execute_command(player, cmd, byServer, save_data, player_sd_index);
-        });
-      }
-
-      form.button2(""); // Cancel
-      actions.push(() => {
-        return command_menu(player, cmd);
-      });
-
-      form.show(player).then((response_2) => {
-        if (response_2.selection === undefined) return -1;
-        if (actions[response_2.selection]) actions[response_2.selection]();
-      });
-    } else {
-      execute_command(player, cmd, byServer, save_data, player_sd_index);
-    }
-  });
-}
 
 function command_history_menu(player) {
   let form = new ActionFormData();
@@ -1657,19 +2590,94 @@ function command_history_menu(player) {
   });
 }
 
+function command_menu(player, command) {
+  let form = new ModalFormData();
+  let save_data = load_save_data();
+
+  const playerNames = ["Server", ...world.getAllPlayers().map(p => p.name)];
+  if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
+
+  form.title("Command");
+  form.textField("Command", "e.g. /say hallo world!", { defaultValue: command });
+  form.dropdown(
+    "Execute by",
+    playerNames,
+    { defaultValueIndex: playerNames.indexOf(player.name), tooltip: "If you select other players it will run also at that location.\n§7§oNote: The Server doesn't have some properties!" }
+  );
+
+  form.show(player).then(response => {
+    if (response.canceled) return -1;
+    if (!response.formValues[0]) return visual_command(player);
+
+    let cmd = response.formValues[0].startsWith("/")
+      ? response.formValues[0]
+      : "/" + response.formValues[0];
+
+    let targetIdentity;
+    if (response.formValues[1] === 0) {
+      targetIdentity = "server";
+    } else {
+      const targetName = playerNames[response.formValues[1]];
+      targetIdentity = world.getAllPlayers().find(p => p.name === targetName);
+    }
+
+    let matchedBlock = null;
+    for (const block of block_command_list) {
+      if (cmd.toLowerCase().includes(block.command_prefix.toLowerCase())) {
+        if (!matchedBlock || block.command_prefix.length > matchedBlock.command_prefix.length) {
+          matchedBlock = block;
+        }
+      }
+    }
+
+    if (matchedBlock) {
+      let form = new MessageFormData();
+      let actions = [];
+      form.title("Warning");
+      form.body(
+        matchedBlock.rating === 1
+          ? `The §l/${matchedBlock.command_prefix}§r command behaves differently than expected in §chardcore mode§r.\n\nDo you want to run it anyways?`
+          : matchedBlock.rating === 2
+            ? `The /${matchedBlock.command_prefix}§r command will most likely §4§llose your hardcore world!§r\n\nDo you really want that?`
+            : ""
+      );
+
+      if (matchedBlock.rating > 0) {
+        form.button1(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
+        actions.push(() => {
+          return execute_command(player, cmd, targetIdentity);
+        });
+      }
+
+      form.button2(""); // Cancel
+      actions.push(() => {
+        return command_menu(player, cmd);
+      });
+
+      form.show(player).then((response_2) => {
+        if (response_2.selection === undefined) return -1;
+        if (actions[response_2.selection]) actions[response_2.selection]();
+      });
+    } else {
+      execute_command(player, cmd, targetIdentity);
+    }
+  });
+}
+
+
 
 /*------------------------
  execute Command
 -------------------------*/
 
-function execute_command(player, cmd, byServer) {
+function execute_command(source, cmd, target) {
   let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
 
   try {
-    let result = byServer
+    let result = target === "server"
       ? world.getDimension("overworld").runCommand(cmd)
-      : player.runCommand(cmd);
+      : target.runCommand(cmd);
 
     const success = result.successCount > 0;
 
@@ -1687,7 +2695,8 @@ function execute_command(player, cmd, byServer) {
     }
 
     update_save_data(save_data);
-    player.sendMessage(success ? "Command executed" : "§cCommand didn't execute");
+    source.sendMessage(success ? "Command executed" : "§cCommand didn't execute");
+    return success;
 
   } catch (e) {
     let existingCommand = save_data[player_sd_index].command_history.find(entry => entry.command === cmd);
@@ -1706,8 +2715,10 @@ function execute_command(player, cmd, byServer) {
     update_save_data(save_data);
     command_menu_result_e(player, e.message, cmd);
     player.sendMessage("§c" + e.message);
+    return false;
   }
 }
+
 
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
@@ -1750,31 +2761,96 @@ function command_menu_result_e(player, message, command) {
 function visual_command(player) {
   let form = new ActionFormData();
   let actions = [];
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+
+  // Zwei Sammlungen: empfohlen und normal
+  const recommendedEntries = [];
+  const normalEntries = [];
+
+  // Hilfsfunktion zum Registrieren eines Buttons (wird noch nicht ins Form eingefügt)
+  function addEntry(label, icon, actionFn, recommended = false) {
+    const entry = { label, icon, actionFn };
+    if (recommended) recommendedEntries.push(entry);
+    else normalEntries.push(entry);
+  }
 
   form.title("Visual commands");
   form.body("Select a command!");
 
+  // --- Enchant ---
+  for (const p of world.getPlayers()) {
+    const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
+    if (!item) continue;
 
-  form.button("Enchant", "textures/items/book_enchanted");
-  actions.push(() => visual_command_enchant(player));
+    const compatibleEnchants = getCompatibleEnchantmentTypes(item);
+    if (!(compatibleEnchants.length > 0)) continue;
 
-  form.button("Effect", "textures/ui/absorption_effect");
-  if (anyPlayerHasEffect()) {
-      actions.push(() => visual_command_effect_select(player));
-    } else {
-      actions.push(() => visual_command_effect_add(player));
+    addEntry("Enchant", "textures/items/book_enchanted", () => visual_command_enchant(player), p.name === player.name);
+    break;
+  }
+
+  // --- Gamerule ---
+  if (version_info.release_type !== 2) {
+    addEntry("Gamerule", "textures/ui/icon_iron_pickaxe",
+      () => { if (save_data[player_sd_index].quick_run) visual_command_gamerule(player); else visual_command_gamerule_quick_run(player); },
+      false
+    );
+  }
+
+  // --- Run via. Text box ---
+
+  addEntry("Type a command", "textures/ui/chat_send",
+    () => { command_menu(player); },
+    false
+  );
+
+
+
+  // --- Effect: action hängt von anyPlayerHasEffect() ab; markiere empfohlen wenn Effekte vorhanden sind ---
+  const effectHas = anyPlayerHasEffect();
+  addEntry("Effect", "textures/ui/absorption_effect",
+    () => { if (effectHas) visual_command_effect_select(player); else visual_command_effect_add(player); },
+    player.getEffects().length > 0
+  );
+
+  // --- Summon ---
+  addEntry("Summon", "textures/items/spawn_eggs/spawn_egg_agent", () => all_EntityTypes(player), false);
+
+  // --- Give ---
+  if (version_info.release_type == 0) {
+    addEntry("Give", "textures/ui/recipe_book_icon", () => all_ItemTypes(player), false);
+  }
+
+  // --- Time ---
+  addEntry("Time", "textures/items/clock_item", () => visual_command_time(player), !(world.getTimeOfDay() < 12000));
+
+  // --- Weather ---
+  addEntry("Weather", "textures/ui/cloud_only_storage", () => visual_command_weather(player), currentWeather !== WeatherType.Clear);
+
+
+  recommendedEntries.sort((a, b) => a.label.localeCompare(b.label));
+  normalEntries.sort((a, b) => a.label.localeCompare(b.label));
+
+  if (recommendedEntries.length > 0) {
+    form.label("Recommended");
+    for (const e of recommendedEntries) {
+
+      e.icon? form.button(e.label, e.icon) : form.button(e.label);
+      actions.push(e.actionFn);
     }
+    form.divider();
+    form.label("More commands");
+  }
 
-  form.button("Summon", "textures/items/spawn_eggs/spawn_egg_agent");
-  actions.push(() => all_EntityTypes(player));
 
-  form.button("Time", "textures/items/clock_item");
-  actions.push(() => visual_command_time(player));
+  for (const e of normalEntries) {
+    e.icon? form.button(e.label, e.icon) : form.button(e.label);
+    actions.push(e.actionFn);
+  }
 
-  form.button("Weather", "textures/ui/cloud_only_storage");
-  actions.push(() => visual_command_weather(player));
-
-  form.divider()
+  form.divider();
   form.button("");
   actions.push(() => main_menu(player));
 
@@ -1782,12 +2858,123 @@ function visual_command(player) {
     if (response.selection === undefined) {
       return -1;
     }
+    const idx = response.selection;
+    if (actions[idx]) {
+      actions[idx]();
+    }
+  });
+}
 
-    if (actions[response.selection]) {
-      actions[response.selection]();
+/*------------------------
+ visual_command: Gamerule
+-------------------------*/
+
+function visual_command_gamerule_quick_run(player) {
+  let form = new MessageFormData();
+  let actions = [];
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Quick run?");
+  form.body("You must enable Quick run to continue!");
+
+  form.button1("§aEnable")
+  form.button2("");
+
+  // Formular anzeigen
+  form.show(player).then((response) => {
+      if (response.selection == undefined) {
+          return -1;
+      }
+      if (response.selection == 0) {
+        save_data[player_sd_index].quick_run = true
+        update_save_data(save_data)
+        visual_command_gamerule(player)
+      } else {
+        visual_command(player)
+      }
+  });
+}
+
+function visual_command_gamerule(player) {
+  let form = new ModalFormData();
+  let actions = [];
+
+  form.title("Visual commands - gamerule");
+
+  const controls = [];
+
+  // Add controls to form
+  gamerules.forEach((g) => {
+    const current = world.gameRules[g.key];
+
+    if (g.type === "boolean") {
+      form.toggle(g.key, { defaultValue: !!current, tooltip: g.tooltip });
+      controls.push({ key: g.key, type: "boolean" });
+    } else if (g.type === "slider") {
+      const def = typeof current === "number" ? current : g.min;
+      form.slider(g.key, g.min, g.max, { defaultValue: Number(def), tooltip: g.tooltip, valueStep: g.step ?? 1 });
+      controls.push({ key: g.key, type: "number", input: "slider" });
+    } else if (g.type === "numberText") {
+      const defStr = (typeof current !== "undefined" && current !== null) ? String(current) : "";
+      form.textField(g.key, "Enter a number", { defaultValue: defStr, tooltip: g.tooltip });
+      controls.push({ key: g.key, type: "number", input: "text" });
     }
   });
 
+  // Show form & apply changes
+  form.show(player).then((response) => {
+    if (response.canceled) {
+      return;
+    }
+
+    const values = response.formValues;
+    const changedRules = [];
+
+    for (let i = 0; i < controls.length; i++) {
+      const c = controls[i];
+      const oldValue = world.gameRules[c.key];
+      let newValue = values[i];
+
+      if (c.type === "boolean") {
+        newValue = Boolean(newValue);
+        if (oldValue !== newValue) {
+          changedRules.push({ key: c.key, value: newValue.toString() });
+        }
+      } else if (c.type === "number") {
+        if (c.input === "slider") {
+          newValue = Number(newValue);
+          if (oldValue !== newValue) {
+            changedRules.push({ key: c.key, value: newValue.toString() });
+          }
+        } else {
+          const parsed = parseInt(String(newValue), 10);
+          if (!Number.isNaN(parsed) && oldValue !== parsed) {
+            changedRules.push({ key: c.key, value: parsed.toString() });
+          } else if (Number.isNaN(parsed)) {
+            player.sendMessage(`§cInvalid value for ${c.key}: ${newValue} (skipped)`);
+          }
+        }
+      }
+    }
+
+    if (changedRules.length === 0) {
+      return;
+    }
+
+    // Run commands sequentially for each changed gamerule:
+    // command syntax: gamerule <name> <value>
+    (async () => {
+      for (const rule of changedRules) {
+        const cmd = `gamerule ${rule.key} ${rule.value}`;
+        try {
+          execute_command(player, cmd, false)
+        } catch (e) {
+          player.sendMessage(`§cFailed to set ${rule.key}: ${e.message ?? e}`);
+        }
+      }
+    })();
+  });
 }
 
 /*------------------------
@@ -1795,29 +2982,90 @@ function visual_command(player) {
 -------------------------*/
 
 function visual_command_enchant(player) {
-  let form = new ActionFormData()
-  let actions = []
+  let form = new ActionFormData();
+  let actions = [];
 
   form.title("Visual commands - enchant");
-  form.body("Select a type!");
+  form.body("Select a vailed Item!");
 
-  //form.divider()
-  form.button("");
-  actions.push(() => {
-    return visual_command(player)
+  world.getPlayers().forEach(p => {
+      const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
+      if (!item) return;
+
+      const compatibleEnchants = getCompatibleEnchantmentTypes(item);
+      if (!(compatibleEnchants.length > 0)) return;
+
+      form.button({ rawtext: [{ translate: "item." + item.typeId.replace(/^[^:]+:/, "") + ".name" }, {text: `\n(${p.name})`}]});
+      actions.push(() => {
+        visual_command_enchant_type(player, p, item)
+      });
   });
 
 
+  form.divider()
+  form.button("");
+  actions.push(() => {
+      return visual_command(player);
+  });
+
+  // Formular anzeigen
   form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (response.selection !== undefined && actions[response.selection]) {
-      actions[response.selection]();
-    }
+      if (response.selection == undefined) {
+          return -1;
+      }
+      if (response.selection !== undefined && actions[response.selection]) {
+          actions[response.selection]();
+      }
   });
 }
 
+function visual_command_enchant_type(viewing_player, selected_player, item) {
+  let form = new ActionFormData();
+  let actions = [];
+
+  // Kompatible Enchants holen
+  const compatibleEnchants = getCompatibleEnchantmentTypes(item);
+
+  form.title("Visual commands - enchant");
+  form.body({ rawtext: [{text: "Select an enchantment for: "}, { translate: "item." + item.typeId.replace(/^[^:]+:/, "") + ".name" }, {text: " (possible: " + compatibleEnchants.length + ")"}]});
+
+  let save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(e => e.id === viewing_player.id);
+
+  // Kategorien bilden (connected components basierend auf Inkompatibilitäten)
+  const categories = buildEnchantmentCategories(item, compatibleEnchants);
+
+  // Für jede Kategorie: Buttons hinzufügen; zwischen Kategorien divider einfügen
+  categories.forEach((cat, ci) => {
+    if (ci > 0) form.divider(); // trennt Kategorien
+
+    // Optional: wenn Kategorie mehr als 1 Element hat, können wir einen kleinen Gruppentext
+    // (ActionForm hat keine echte section label, daher könnten wir z.B. den ersten Button präfixen).
+    for (const e of cat) {
+      const label = humanizeId(e.id) + (e.maxLevel > 1 ? " " + toRoman(e.maxLevel) : "");
+      form.button(label);
+      actions.push(() => {
+        const command = `/enchant "${selected_player.name}" ${e.id} ` + (e.maxLevel > 1 ? e.maxLevel : "");
+
+        if (save_data[player_sd_index].quick_run) {
+          (execute_command(viewing_player, command, false) && getCompatibleEnchantmentTypes(item).length > 0)? visual_command_enchant_type(viewing_player, selected_player, selected_player.getComponent("minecraft:inventory")?.container?.getItem(selected_player.selectedSlotIndex)) : undefined
+
+        } else {
+          command_menu(viewing_player, command);
+        }
+      });
+    }
+  });
+
+  form.divider();
+  form.button("");
+  actions.push(() => { visual_command_enchant(viewing_player); });
+
+  form.show(viewing_player).then((response) => {
+    if (response.selection == undefined) return -1;
+    if (actions[response.selection]) actions[response.selection]();
+  });
+}
 
 /*------------------------
  visual_command: Effect
@@ -1982,9 +3230,9 @@ function visual_command_effect_add(player) {
 
     if (id !== "empty") {
       if (icon) {
-        form.button(id, icon);
+        form.button(humanizeId(id), icon);
       } else {
-        form.button(id);
+        form.button(humanizeId(id));
       }
       actions.push(() => visual_command_effect_config(player, id));
     }
@@ -2014,7 +3262,7 @@ function visual_command_effect_config(player, id) {
   const form = new ModalFormData();
   const save_data = load_save_data();
   const player_sd_index = save_data.findIndex(e => e.id === player.id);
-  form.title(id + " - config");
+  form.title(humanizeId(id) + " - config");
 
   const allPlayers = world.getAllPlayers();
   const playerNames = allPlayers.map(p => p.name);
@@ -2053,6 +3301,53 @@ function visual_command_effect_config(player, id) {
       : command_menu(player, command);
     });
 
+}
+
+/*------------------------
+ visual_command: Give
+-------------------------*/
+
+function all_ItemTypes(player) {
+  let form = new ActionFormData()
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let actions = []
+
+  form.title("Visual commands - summon");
+  form.body("What do you want to spawn?");
+
+  ItemTypes.getAll()
+  .sort((a, b) => a.id.localeCompare(b.id))
+  .forEach(e => {
+
+    const id = e.id.replace(/^minecraft:/, "");
+
+    // Deletes all entries that are on the blocklist!
+    if (!entity_blocklist.find(entity => entity.id == id)) {
+      form.button(id);
+
+      actions.push(() => save_data[player_sd_index].quick_run
+        ? execute_command(player, "give \""+player.name+"\" " + id, false)
+        : command_menu(player, "give \""+player.name+"\" " + id, false)
+      );
+    }
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return visual_command(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
 }
 
 /*------------------------
@@ -2222,39 +3517,42 @@ function settings_main(player) {
   form.divider()
 
   // Button 1: Permission
-  if (save_data[player_sd_index].op) {
+  if (player.playerPermissionLevel === 2) {
     form.label("Multiplayer");
 
-    form.button("Permission\n" + (() => {
-      const players = world.getAllPlayers();
-      const ids = players.map(p => p.id);
-      const names = save_data.slice(1).sort((a, b) =>
-        ids.includes(a.id) && !ids.includes(b.id) ? -1 :
-        ids.includes(b.id) && !ids.includes(a.id) ? 1 : 0
-      ).map(e => e.name);
-      return names.length > 1 ? names.slice(0, -1).join(", ") + " u. " + names[names.length - 1] : names.join(", ");
-    })(), "textures/ui/op");
-    actions.push(() => {
-      settings_rights_main(player, true)
-    });
-  }
+    // Button 3: Permission
+    const players = world.getAllPlayers();
+    const ids = players.map(p => p.id);
+    const names = save_data.slice(1).sort((a, b) =>
+      ids.includes(a.id) && !ids.includes(b.id) ? -1 :
+      ids.includes(b.id) && !ids.includes(a.id) ? 1 : 0
+    ).map(e => e.name);
 
-  // Button 4: UTC
-  if (save_data[player_sd_index].op == true) {
-      let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
+    if (names.length > 1) {
+      form.button("Permission\n" + (() => {
+        return names.length > 1 ? names.slice(0, -1).join(", ") + " u. " + names[names.length - 1] : names.join(", ");
+      })(), "textures/ui/op");
+      actions.push(() => {
+        settings_rights_main(player)
+      });
+    }
 
-      if (!zone) {
-        if (zone !== undefined) {
-          zone = timezone_list.reduce((closest, current) => {
-            const currentDiff = Math.abs(current.utc - save_data[0].utc);
-            const closestDiff = Math.abs(closest.utc - save_data[0].utc);
-            return currentDiff < closestDiff ? current : closest;
-          });
-          zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
-        }
-      } else {
-        zone_text = zone.name.length > 30 ? zone.short : zone.name
+
+    // Button 4: UTC
+    let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
+
+    if (!zone) {
+      if (zone !== undefined) {
+        zone = timezone_list.reduce((closest, current) => {
+          const currentDiff = Math.abs(current.utc - save_data[0].utc);
+          const closestDiff = Math.abs(closest.utc - save_data[0].utc);
+          return currentDiff < closestDiff ? current : closest;
+        });
+        zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
       }
+    } else {
+      zone_text = zone.name.length > 30 ? zone.short : zone.name
+    }
 
 
     form.button(("Time zone") + (zone !== undefined? "\n§9"+zone_text : ""), "textures/ui/world_glyph_color_2x")
@@ -2269,7 +3567,7 @@ function settings_main(player) {
   form.label("Version");
 
   // Button 5: Debug
-  if (version_info.release_type == 0 && save_data[player_sd_index].op) {
+  if (version_info.release_type == 0 && player.playerPermissionLevel === 2) {
     form.button("Debug\n", "textures/ui/ui_debug_glyph_color");
     actions.push(() => {
       debug_main(player);
@@ -2642,7 +3940,7 @@ function dictionary_about(player, show_ip) {
 
   form.label("§7© "+ (build_date.year > 2025 ? "2025 - " + build_date.year : build_date.year ) + " TheFelixLive. Licensed under the MIT License.")
 
-  if (!show_ip && server_ip && save_data[player_sd_index].op) {
+  if (!show_ip && server_ip && player.playerPermissionLevel === 2) {
     form.button("Show Public IP");
     actions.push(() => {
       dictionary_about(player, true)
@@ -2804,7 +4102,7 @@ function dictionary_about_changelog_view(player, version) {
   const form = new ActionFormData().title("Changelog - " + version.name);
 
   // TODO: Markdown support
-  form.body(version.body)
+  form.body(markdownToMinecraft(version.body))
 
 
   const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
@@ -2882,7 +4180,7 @@ function dictionary_contact(player) {
     form.label(`${entry.name}\n${entry.link}`);
   }
 
-  if (save_data[player_sd_index].op) {
+  if (player.playerPermissionLevel === 2) {
     form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
     actions.push(() => {
       player.sendMessage("§l§7[§f"+ ("System") + "§7]§r SD Dump:\n"+JSON.stringify(save_data))
@@ -2916,7 +4214,6 @@ function dictionary_contact(player) {
  Debug
 -------------------------*/
 
-
 function debug_main(player) {
   let form = new ActionFormData()
   let actions = []
@@ -2931,12 +4228,6 @@ function debug_main(player) {
     debug_sd_editor(player, () => debug_main(player), [])
   });
 
-
-  form.button("§aAdd player (save data)");
-  actions.push(() => {
-    return debug_add_fake_player(player);
-  });
-
   form.button("§cRemove \"save_data\"");
   actions.push(() => {
     world.setDynamicProperty("com2hard:save_data", undefined);
@@ -2948,6 +4239,11 @@ function debug_main(player) {
   actions.push(() => {
     return close_world()
   });
+
+  form.button("§9Test command fixer");
+  actions.push(() => {
+    return test_fix(player)
+  })
 
   form.divider()
   form.button("");
@@ -2963,6 +4259,69 @@ function debug_main(player) {
       actions[response.selection]();
     }
   });
+}
+
+
+function test_fix(player) {
+  let form = new ModalFormData()
+    .title("Command fixer test")
+    .textField("Enter a command to fix", "e.g. /give @s diamond_sword 1")
+  form.show(player).then(res => {
+    if (res.formValues == undefined) {
+      return -1
+    }
+    const input = res.formValues[0];
+    print("Input: "+ input);
+    print("Output: "+ JSON.stringify(fixCommand(input)));
+  });
+}
+
+function fixCommand(input) {
+  if (!input || typeof input !== "string") return { fix_available: false, command: null, reason: "no input" };
+  const trimmed = input.trim();
+  if (!trimmed) return { fix_available: false, command: null, reason: "empty input" };
+
+  // Tokenize preserving JSON/brackets/quotes
+  const tokens = splitArgsPreserveJSON(trimmed);
+  if (tokens.length === 0) return { fix_available: false, command: null, reason: "no tokens" };
+
+  // First token is command (maybe with /)
+  let first = tokens[0];
+  const hadSlash = first.startsWith("/");
+  first = normalizeCommandName(first);
+
+  // build candidate names
+  const candidates = buildCandidatesList();
+
+  // exact?
+  if (candidates.includes(first)) {
+    // proceed to fix subargs using the matching command entry
+    const matchedCmdName = first; // normalized
+    const cmdDef = command_list.find(c => c.name.toLowerCase() === matchedCmdName || (c.aliases && c.aliases.map(a=>a.toLowerCase()).includes(matchedCmdName)));
+    const restTokens = tokens.slice(1);
+    const fixResult = fixSubArgsAccordingToCmd(cmdDef, restTokens);
+    const final = "/" + (cmdDef ? cmdDef.name : matchedCmdName) + (fixResult.fixedArgsString ? " " + fixResult.fixedArgsString : (restTokens.length ? " " + restTokens.join(" ") : ""));
+    return { fix_available: true, command: final, corrections: fixResult.corrections, reason: "exact command match" };
+  }
+
+  // fuzzy match command name
+  const cmdMatch = fuzzyBest(first, candidates, 2, 0.35);
+  if (!cmdMatch.accept) {
+    return { fix_available: false, command: null, suggestion: cmdMatch.suggestions, reason: "no confident command match" };
+  }
+  const suggestedCmd = cmdMatch.best;
+  const cmdDef = command_list.find(c => c.name.toLowerCase() === suggestedCmd || (c.aliases && c.aliases.map(a=>a.toLowerCase()).includes(suggestedCmd)));
+  const rest = tokens.slice(1);
+  // attempt to fix sub-arguments now using cmdDef
+  const subFix = fixSubArgsAccordingToCmd(cmdDef, rest);
+  const rebuilt = "/" + (cmdDef ? cmdDef.name : suggestedCmd) + (subFix.fixedArgsString ? " " + subFix.fixedArgsString : (rest.length ? " " + rest.join(" ") : ""));
+  return {
+    fix_available: true,
+    command: rebuilt,
+    suggestion: suggestedCmd,
+    corrections: subFix.corrections,
+    reason: `autocorrected command name (dist=${cmdMatch.dist})`
+  };
 }
 
 function debug_sd_editor(player, onBack, path = []) {
@@ -3194,27 +4553,27 @@ function generateEntityUniqueId() {
  rights
 -------------------------*/
 
-function settings_rights_main(player, came_from_settings) {
+function settings_rights_main(player) {
   let form = new ActionFormData();
   let save_data = load_save_data();
 
   form.title("Permissions");
   form.body("Select a player!");
 
-
   const players = world.getAllPlayers();
-  const playerIds = players.map(player => player.id);
+  const playerMap = new Map(players.map(p => [p.id, p])); // Map für schnelle Abfragen
 
   let newList = save_data.slice(1);
 
   newList.sort((a, b) => {
     const now = Math.floor(Date.now() / 1000);
 
-    const aOnline = playerIds.includes(a.id);
-    const bOnline = playerIds.includes(b.id);
+    const aOnline = playerMap.has(a.id);
+    const bOnline = playerMap.has(b.id);
 
-    const aOp = a.op;
-    const bOp = b.op;
+    // Nur wenn online -> PermissionLevel checken
+    const aOp = aOnline ? playerMap.get(a.id).playerPermissionLevel === 2 : false;
+    const bOp = bOnline ? playerMap.get(b.id).playerPermissionLevel === 2 : false;
 
     const aLastSeen = now - a.last_unix;
     const bLastSeen = now - b.last_unix;
@@ -3231,42 +4590,39 @@ function settings_rights_main(player, came_from_settings) {
 
       return aName.localeCompare(bName);
     }
+
+    // Offline: nur nach last_unix
     return aLastSeen - bLastSeen;
   });
 
-
   newList.forEach(entry => {
-    const isOnline = playerIds.includes(entry.id);
+    const isOnline = playerMap.has(entry.id);
     let displayName = entry.name;
 
     if (isOnline) {
       displayName += "\n§a(online)§r";
+
+      // Online → check PermissionLevel
+      const onlinePlayer = playerMap.get(entry.id);
+      if (onlinePlayer.playerPermissionLevel === 2) {
+        form.button(displayName, "textures/ui/op");
+      } else {
+        form.button(displayName, "textures/ui/permissions_member_star");
+      }
     } else {
       displayName += "\n§o(last seen " + getRelativeTime(Math.floor(Date.now() / 1000) - entry.last_unix) + " ago)§r";
-    }
 
-    if (entry.op) {
-      form.button(displayName, "textures/ui/op");
-    } else {
-      form.button(displayName, "textures/ui/permissions_member_star");
+      // Offline → nur lan Icon
+      form.button(displayName, "textures/ui/lan_icon");
     }
   });
 
-  form.divider()
+  form.divider();
   form.button("");
 
-  if (newList.length == 1) {
-    if (came_from_settings) {
-      return settings_rights_data(player, newList[0]);
-    } else {
-      return settings_main(player);
-    }
-  }
-
-
   form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
+    if (response.selection == undefined) {
+      return -1;
     }
     if (response.selection === newList.length) {
       return settings_main(player);
@@ -3275,6 +4631,7 @@ function settings_rights_main(player, came_from_settings) {
     }
   });
 }
+
 
 function settings_rights_data(viewing_player, selected_save_data) {
   let save_data = load_save_data()
@@ -3323,7 +4680,9 @@ function settings_rights_data(viewing_player, selected_save_data) {
           }
 
           body_text += "Online: yes\n";
+          body_text += "Permission level: "+ selected_player.playerPermissionLevel +"\n";
           body_text += "Platform: " + selected_player.clientSystemInfo.platformType + "\n";
+          body_text += "Graphics mode: " + selected_player.graphicsMode + "\n";
           body_text += memory_text + "\n";
           body_text += input_text + "\n";
 
@@ -3335,71 +4694,79 @@ function settings_rights_data(viewing_player, selected_save_data) {
       body_text += "Online: no §7(last seen " + getRelativeTime(Math.floor(Date.now() / 1000) - selected_save_data.last_unix) + " ago)§r\n";
   }
 
-  body_text += "\n";
+
 
   form.body(body_text);
   let actions = [];
 
   if (selected_save_data.id !== viewing_player.id) {
     form.title("Edit "+ selected_save_data.name +"'s permission");
-    if (selected_save_data.op) {
 
-      form.button("§cMake deop");
-      actions.push(() => {
-        let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
-        save_data[player_sd_index].op = false
-        update_save_data(save_data);
-        return settings_rights_data(viewing_player, save_data[player_sd_index])
-      });
+    if (selected_player) {
+      if (selected_player.playerPermissionLevel === 2) {
+        form.label("§7This player is currently op! To change that open Minecraft's Player Permission page.§r\n");
 
-    } else {
-
-      form.button("§aMake op");
-      actions.push(() => {
-        form = new MessageFormData();
-        form.title("Op advantages");
-        form.body("Your are trying to add op advantages to "+selected_save_data.name+". With them he would be able to:\n\n- Run all kinds off command\n- Mange save data\n\nAre you sure you want to add them?\n ");
-        form.button2("");
-        form.button1("§aMake op");
-        form.show(viewing_player).then((response) => {
-          if (response.selection == undefined ) {
-            return -1
-          }
-          if (response.selection == 0) {
-            let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
-            save_data[player_sd_index].op = true
-            selected_save_data = save_data[player_sd_index]
-            update_save_data(save_data);
-          }
-
-          return settings_rights_data(viewing_player, selected_save_data)
+        /* Minecraft Bug: Op command doesn't via scripts
+        form.button("§cMake deop");
+        actions.push(() => {
+          let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
+          viewing_player.runCommand(`deop ${selected_save_data.name}`);
+          update_save_data(save_data);
+          return settings_rights_data(viewing_player, save_data[player_sd_index])
         });
-      });
+        */
+      } else {
+        form.label("§7This player is currently not op! To change that open Minecraft's Player Permission page.§r\n");
 
+        /* Minecraft Bug: Op command doesn't via scripts
+        form.button("§aMake op");
+        actions.push(() => {
+          form = new MessageFormData();
+          form.title("Op advantages");
+          form.body("Your are trying to add op advantages to "+selected_save_data.name+". With them he would be able to:\n\n- Run all kinds off command\n- Mange save data\n\nAre you sure you want to add them?\n ");
+          form.button2("");
+          form.button1("§aMake op");
+          form.show(viewing_player).then((response) => {
+            if (response.selection == undefined ) {
+              return -1
+            }
+            if (response.selection == 0) {
+              let player_sd_index = save_data.findIndex(entry => entry.id === selected_save_data.id)
+              viewing_player.runCommand(`op ${selected_save_data.name}`);
+              selected_save_data = save_data[player_sd_index]
+              update_save_data(save_data);
+            }
+
+            return settings_rights_data(viewing_player, selected_save_data)
+          });
+        });
+        */
+      }
+    } else {
+      body_text += "\n";
+      form.title("Edit your permission");
     }
-  } else {
-    form.title("Edit your permission");
+
+    form.button("Manage save data");
+    actions.push(() => {
+      settings_rights_manage_sd(viewing_player, selected_save_data);
+    });
+
+    form.divider()
+    form.button("");
+    actions.push(() => {
+      settings_rights_main(viewing_player, false);
+    });
+
+    form.show(viewing_player).then((response) => {
+      if (response.selection == undefined ) {
+        return -1
+      }
+      if (actions[response.selection]) {
+        actions[response.selection]();
+      }
+    });
   }
-
-  form.button("Manage save data");
-  actions.push(() => {
-    settings_rights_manage_sd(viewing_player, selected_save_data);
-  });
-
-  form.divider()
-  form.button("");
-  actions.push(() => {
-    settings_rights_main(viewing_player, false);
-  });
-
-  form.show(viewing_player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
 }
 
 function settings_rights_manage_sd(viewing_player, selected_save_data) {
@@ -3505,6 +4872,7 @@ async function update_loop() {
         if (player_sd_index) {
           save_data[player_sd_index].last_unix = Math.floor(Date.now() / 1000)
           update_save_data(save_data);
+          save_data = load_save_data();
         }
       });
 
