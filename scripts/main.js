@@ -1,13 +1,13 @@
-import { system, world, EntityTypes, EffectTypes, ItemTypes, EnchantmentTypes, WeatherType} from "@minecraft/server";
+import { system, world, EntityTypes, EffectTypes, ItemTypes, BlockTypes, EnchantmentTypes, WeatherType} from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B022",
+  build: "B023",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1758137620,
+  unix: 1758222187,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -25,7 +25,7 @@ const version_info = {
   }
 }
 
-console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
+print("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
 
 
 /*------------------------
@@ -474,7 +474,7 @@ const gamerules = [
   { key: "doDayLightCycle", type: "boolean", tooltip: "The daylight cycle progresses naturally." },
   { key: "doEntityDrops", type: "boolean", tooltip: "Entities drop items when destroyed." },
   { key: "doFireTick", type: "boolean", tooltip: "Fire spreads and extinguishes naturally." },
-  { key: "doImmediateRespawn", type: "boolean", tooltip: "Players respawn immediately without death screen." },
+  { key: "doImmediateRespawn", type: "boolean", tooltip: "players respawn immediately without death screen." },
   { key: "doInsomnia", type: "boolean", tooltip: "Phantoms spawn when players haven’t slept." },
   { key: "doLimitedCrafting", type: "boolean", tooltip: "Only unlocked recipes can be crafted." },
   { key: "doMobLoot", type: "boolean", tooltip: "Mobs drop loot on death." },
@@ -482,23 +482,23 @@ const gamerules = [
   { key: "doTileDrops", type: "boolean", tooltip: "Blocks drop items when broken." },
   { key: "doWeatherCycle", type: "boolean", tooltip: "Weather changes naturally." },
 
-  { key: "drowningDamage", type: "boolean", tooltip: "Players take damage from drowning." },
-  { key: "fallDamage", type: "boolean", tooltip: "Players take fall damage." },
-  { key: "fireDamage", type: "boolean", tooltip: "Players take damage from fire." },
-  { key: "freezeDamage", type: "boolean", tooltip: "Players take damage from freezing." },
+  { key: "drowningDamage", type: "boolean", tooltip: "players take damage from drowning." },
+  { key: "fallDamage", type: "boolean", tooltip: "players take fall damage." },
+  { key: "fireDamage", type: "boolean", tooltip: "players take damage from fire." },
+  { key: "freezeDamage", type: "boolean", tooltip: "players take damage from freezing." },
 
   { key: "functionCommandLimit", type: "numberText", tooltip: "Max number of commands a function can run." },
 
-  { key: "keepInventory", type: "boolean", tooltip: "Players keep inventory after death." },
+  { key: "keepInventory", type: "boolean", tooltip: "players keep inventory after death." },
   { key: "maxCommandChainLength", type: "numberText", tooltip: "Maximum number of commands in a command chain." },
 
   { key: "mobGriefing", type: "boolean", tooltip: "Mobs can modify the world (e.g., Creepers explode blocks)." },
-  { key: "naturalRegeneration", type: "boolean", tooltip: "Players regenerate health naturally." },
+  { key: "naturalRegeneration", type: "boolean", tooltip: "players regenerate health naturally." },
 
   { key: "playersSleepingPercentage", type: "slider", min: 0, max: 100, step: 1, tooltip: "Percent of players required to sleep to skip the night." },
 
   { key: "projectilesCanBreakBlocks", type: "boolean", tooltip: "Projectiles can break blocks." },
-  { key: "pvp", type: "boolean", tooltip: "Players can damage each other (PvP enabled)." },
+  { key: "pvp", type: "boolean", tooltip: "players can damage each other (PvP enabled)." },
 
   { key: "randomTickSpeed", type: "slider", min: 0, max: 1000, step: 1, tooltip: "Rate of random ticks (affects growth, fire, etc.)." },
 
@@ -519,169 +519,1675 @@ const gamerules = [
 ];
 
 const command_list = [
-  {
-    name: "give",
-    aliases: ["give"],
-    description: "Gives an item to a player",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/give" },
-          { type: "player", name: "target" },
-          { type: "item", name: "item" },
-          { type: "int", name: "count", optional: true },
-          { type: "components", name: "components", optional: true } // JSON / components string
-        ]
-      }
-    ]
-  },
-  {
-    name: "summon",
-    aliases: ["summon"],
-    description: "Summons an entity",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/summon" },
-          { type: "entityType", name: "entityType" },
-          { type: "coords", name: "pos", optional: true },
-          { type: "json", name: "components", optional: true }
-        ]
-      }
-    ]
-  },
-  {
-    name: "effect",
-    aliases: ["effect"],
-    description: "Add/remove potion effects",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/effect" },
-          { type: "player_or_selector", name: "target" },
-          { type: "effect", name: "effect" },
-          { type: "int", name: "seconds", optional: true },
-          { type: "int", name: "amplifier", optional: true },
-          { type: "bool", name: "hideParticles", optional: true }
-        ]
-      }
-    ]
-  },
-  {
-    name: "teleport",
-    aliases: ["teleport", "tp"],
-    description: "Teleport entity or player",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/teleport" },
-          { type: "selector_or_player", name: "target" },
-          { type: "coords_or_selector", name: "destination" }, // destination can be coords or another player
-          { type: "rest", name: "args", optional: true } // yaw, pitch, etc
-        ]
-      }
-    ]
-  },
-  {
-    name: "particle",
-    aliases: ["particle"],
-    description: "Spawn particle",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/particle" },
-          { type: "particle", name: "particleName" },
-          { type: "coords", name: "pos", optional: true },
-          { type: "anything", name: "args", optional: true }
-        ]
-      }
-    ]
-  },
-  {
-    name: "playsound",
-    aliases: ["playsound"],
-    description: "Play a sound",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/playsound" },
-          { type: "sound", name: "sound" },
-          { type: "selector_or_player", name: "targets", optional: true },
-          { type: "coords", name: "pos", optional: true },
-          { type: "float", name: "volume", optional: true },
-          { type: "float", name: "pitch", optional: true }
-        ]
-      }
-    ]
-  },
-  {
-    name: "tellraw",
-    aliases: ["tellraw"],
-    description: "Send JSON-formatted chat messages",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/tellraw" },
-          { type: "player_or_selector", name: "target" },
-          { type: "json", name: "json" }
-        ]
-      }
-    ]
-  },
-  {
-    name: "execute",
-    aliases: ["execute"],
-    description: "Run commands under specific conditions",
-    syntaxes: [
-      {
-        parts: [
-          { type: "literal", value: "/execute" },
-          { type: "rest", name: "subcommand_and_args" } // execute has very complicated sub-syntax — treat as rest and parse sub-clauses
-        ]
-      }
-    ]
-  },
-  {
-    name: "scoreboard",
-    aliases: ["scoreboard"],
-    description: "Manage scoreboards",
-    syntaxes: [
-      { parts: [{ type: "literal", value: "/scoreboard" }, { type: "anything", name: "args" }] }
-    ]
-  },
-  {
-    name: "setblock",
-    aliases: ["setblock"],
-    description: "Set block at coordinates",
-    syntaxes: [
-      { parts: [{ type: "literal", value: "/setblock" }, { type: "coords", name: "pos" }, { type: "block", name: "block" }, { type: "string", name: "mode", optional: true }] }
-    ]
-  },
+  // types: literal, string, int, float, bool, location, blocktype, itemtype, entityType, entityselector, playerselector, effectType, enchantType, weathertype, json, enum
+
   {
     name: "fill",
     aliases: ["fill"],
     description: "Fill area with blocks",
     syntaxes: [
-      { parts: [{ type: "literal", value: "/fill" }, { type: "coords", name: "from" }, { type: "coords", name: "to" }, { type: "block", name: "block" }, { type: "string", name: "mode", optional: true }] }
+      { type: "literal", value: "/fill" },
+      { type: "location", name: "from" },
+      { type: "location", name: "to" },
+      { type: "blocktype", name: "block" },
+      { type: "string", name: "data", optional: true },
+      {
+        type: "enum",
+        name: "mode",
+        optional: true,
+        value: [
+          { value: "destroy" },
+          { value: "hollow" },
+          { value: "keep" },
+          { value: "outline" },
+          {
+            value: "replace",
+            next: [
+              { type: "blocktype", name: "oldBlock", optional: true },
+              { type: "string", name: "oldData", optional: true }
+            ]
+          }
+        ]
+      }
     ]
   },
+
   {
-    name: "give", // already present above but kept for completeness
-    aliases: ["give"],
-    description: "Give item",
+    name: "effect",
+    aliases: ["effect"],
+    description: "Add/remove potion effects",
+    vc_hiperlink: () => { if (anyplayerHasEffect()) visual_command_effect_select(player); else visual_command_effect_add(player); },
     syntaxes: [
-      { parts: [{ type: "literal", value: "/give" }, { type: "player", name: "player" }, { type: "item", name: "item" }, { type: "int", name: "count", optional: true }] }
+      { type: "literal", value: "/effect" },
+      { type: "entityselector", name: "target" },
+      { type: "effectType", name: "effect" },
+      { type: "int", name: "seconds", optional: true },
+      { type: "int", name: "amplifier", optional: true },
+      { type: "bool", name: "hideParticles", optional: true }
     ]
   },
+
+  {
+    name: "give",
+    aliases: ["give"],
+    description: "Gives an item to a player",
+    vc_hiperlink: () => {if (version_info == 0) all_ItemTypes(player); else undefined;},
+    syntaxes: [
+      { type: "literal", value: "/give" },
+      { type: "playerselector", name: "target" },
+      { type: "itemtype", name: "item" },
+      { type: "int", name: "count", optional: true },
+      { type: "string", name: "data", optional: true },
+      { type: "json", name: "components", optional: true }
+    ]
+  },
+
+  {
+    name: "summon",
+    aliases: ["summon"],
+    description: "Summons an entity",
+    vc_hiperlink: () => all_EntityTypes(player),
+    syntaxes: [
+      { type: "literal", value: "/summon" },
+      { type: "entityType", name: "entityType" },
+      { type: "location", name: "pos", optional: true },
+      { type: "json", name: "components", optional: true }
+    ]
+  },
+
+  {
+    name: "teleport",
+    aliases: ["teleport", "tp"],
+    description: "Teleport entity or player",
+    syntaxes: [
+      { type: "literal", value: "/teleport" },
+      {
+        type: "entityselector",
+        name: "victim",
+        optional: true,
+        next: [
+          {
+            type: "entityselector",
+            name: "destination",
+            next: [
+              { type: "bool", name: "checkForBlocks", optional: true }
+            ]
+          },
+          {
+            type: "location",
+            name: "destination",
+            next: [
+              { type: "float", name: "yRot", optional: true },
+              { type: "float", name: "xRot", optional: true },
+              { type: "bool", name: "checkForBlocks", optional: true },
+              {
+                type: "literal",
+                value: "facing",
+                optional: true,
+                next: [
+                  { type: "location", name: "lookAtPosition", optional: true },
+                  { type: "entityselector", name: "lookAtEntity", optional: true }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "playsound",
+    aliases: ["playsound"],
+    description: "Play a sound",
+    syntaxes: [
+      { type: "literal", value: "/playsound" },
+      { type: "string", name: "sound" },
+      { type: "playerselector", name: "targets", optional: true },
+      { type: "location", name: "pos", optional: true },
+      { type: "float", name: "volume", optional: true },
+      { type: "float", name: "pitch", optional: true }
+    ]
+  },
+
+  {
+    name: "setblock",
+    aliases: ["setblock"],
+    description: "Set block at coordinates",
+    syntaxes: [
+      { type: "literal", value: "/setblock" },
+      { type: "location", name: "pos" },
+      { type: "blocktype", name: "block" },
+      {
+        type: "enum",
+        name: "mode",
+        optional: true,
+        value: [{ value: "destroy" }, { value: "keep" }, { value: "replace" }]
+      }
+    ]
+  },
+
   {
     name: "weather",
     aliases: ["weather"],
+    vc_hiperlink: () => visual_command_weather(player),
     description: "Set or query the weather",
     syntaxes: [
-      { parts: [{ type: "literal", value: "/weather" }, { type: "string", name: "type", optional: true }, { type: "int", name: "duration", optional: true }] }
+      { type: "literal", value: "/weather" },
+      { type: "weathertype", name: "type", optional: true },
+      { type: "int", name: "duration", optional: true }
     ]
   },
-  // ... du kannst hier weitere Commands nach Bedarf hinzufügen/feinjustieren
+
+  {
+    name: "help",
+    aliases: ["help", "?"],
+    description: "Show help for commands or a specific command",
+    syntaxes: [
+      { type: "literal", value: "/help" },
+      { type: "string", name: "command", optional: true }
+    ]
+  },
+
+  {
+    name: "ability",
+    aliases: ["ability"],
+    description: "Set or check player abilities (Bedrock-specific)",
+    syntaxes: [
+      { type: "literal", value: "/ability" },
+      { type: "playerselector", name: "player" },
+      { type: "string", name: "ability" },
+      { type: "bool", name: "value", optional: true }
+    ]
+  },
+
+  {
+    name: "alwaysday",
+    aliases: ["alwaysday"],
+    description: "Toggle alwaysday",
+    syntaxes: [
+      { type: "literal", value: "/alwaysday" },
+      { type: "bool", name: "enabled", optional: true }
+    ]
+  },
+
+  {
+    name: "daylock",
+    aliases: ["daylock"],
+    description: "Lock/unlock the time of day",
+    syntaxes: [
+      { type: "literal", value: "/daylock" },
+      { type: "bool", name: "enabled", optional: true }
+    ]
+  },
+
+  {
+    name: "camera",
+    aliases: ["camera"],
+    description: "Control camera (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/camera" },
+      { type: "playerselector", name: "targets" },
+
+      // Hauptaktionen als enum; jede Aktion kann eigene Next-Parameter haben
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "set",
+            next: [
+              // preset name (CameraPresets)
+              {
+                type: "enum",
+                name: "preset",
+                value: [
+                  { value: "minecraft:first_person" },
+                  { value: "minecraft:fixed_boom" },
+                  { value: "minecraft:follow_orbit" },
+                  { value: "minecraft:free" },
+                  { value: "minecraft:third_person" },
+                  { value: "minecraft:third_person_front" },
+                  { value: "minecraft:control_scheme_camera" }
+                ]
+              },
+
+              // optional: ease <easeTime: float> <easeType: Easing>
+              {
+                type: "literal",
+                value: "ease",
+                optional: true,
+                next: [
+                  { type: "float", name: "easeTime" },
+                  {
+                    type: "enum",
+                    name: "easing",
+                    value: [
+                      { value: "linear" },{ value: "spring" },{ value: "in_quad" },{ value: "out_quad" },
+                      { value: "in_out_quad" },{ value: "in_cubic" },{ value: "out_cubic" },{ value: "in_out_cubic" },
+                      { value: "in_quart" },{ value: "out_quart" },{ value: "in_out_quart" },{ value: "in_quint" },
+                      { value: "out_quint" },{ value: "in_out_quint" },{ value: "in_sine" },{ value: "out_sine" },
+                      { value: "in_out_sine" },{ value: "in_expo" },{ value: "out_expo" },{ value: "in_out_expo" },
+                      { value: "in_circ" },{ value: "out_circ" },{ value: "in_out_circ" },{ value: "in_bounce" },
+                      { value: "out_bounce" },{ value: "in_out_bounce" },{ value: "in_back" },{ value: "out_back" },
+                      { value: "in_out_back" },{ value: "in_elastic" },{ value: "out_elastic" },{ value: "in_out_elastic" }
+                    ]
+                  }
+                ]
+              },
+
+              // optional: pos <position: x y z>
+              {
+                type: "literal",
+                value: "pos",
+                optional: true,
+                next: [
+                  { type: "location", name: "position" }
+                ]
+              },
+
+              // optional: rot <xRot: float> <yRot: float>
+              {
+                type: "literal",
+                value: "rot",
+                optional: true,
+                next: [
+                  { type: "float", name: "xRot" },
+                  { type: "float", name: "yRot" }
+                ]
+              },
+
+              // optional: facing <lookAtEntity | lookAtPosition>
+              {
+                type: "literal",
+                value: "facing",
+                optional: true,
+                next: [
+                  { type: "entityselector", name: "lookAtEntity", optional: true },
+                  { type: "location", name: "lookAtPosition", optional: true }
+                ]
+              },
+
+              // optional: view_offset <xViewOffset: float> <yViewOffset: float>
+              {
+                type: "literal",
+                value: "view_offset",
+                optional: true,
+                next: [
+                  { type: "float", name: "xViewOffset" },
+                  { type: "float", name: "yViewOffset" }
+                ]
+              },
+
+              // optional: entity_offset <xEntityOffset: float> <yEntityOffset: float> <zEntityOffset: float>
+              {
+                type: "literal",
+                value: "entity_offset",
+                optional: true,
+                next: [
+                  { type: "float", name: "xEntityOffset" },
+                  { type: "float", name: "yEntityOffset" },
+                  { type: "float", name: "zEntityOffset" }
+                ]
+              },
+
+              // optional: rot + view_offset + entity_offset combinations are allowed via the next chains above
+            ]
+          },
+
+          // entferne Ziel / Ziel setzen
+          {
+            value: "target_entity",
+            next: [
+              { type: "entityselector", name: "entity" },
+              {
+                type: "literal",
+                value: "target_center_offset",
+                optional: true,
+                next: [
+                  { type: "float", name: "xTargetCenterOffset" },
+                  { type: "float", name: "yTargetCenterOffset" },
+                  { type: "float", name: "zTargetCenterOffset" }
+                ]
+              }
+            ]
+          },
+          { value: "remove_target" },
+
+          // clear camera overrides
+          { value: "clear" },
+
+          // fade variants
+          {
+            value: "fade",
+            next: [
+              // fade time <fadeInSeconds: float> <holdSeconds: float> <fadeOutSeconds: float> [color <r g b>]
+              {
+                type: "literal",
+                value: "time",
+                next: [
+                  { type: "float", name: "fadeInSeconds" },
+                  { type: "float", name: "holdSeconds" },
+                  { type: "float", name: "fadeOutSeconds" },
+                  {
+                    type: "literal",
+                    value: "color",
+                    optional: true,
+                    next: [
+                      { type: "int", name: "red" },
+                      { type: "int", name: "green" },
+                      { type: "int", name: "blue" }
+                    ]
+                  }
+                ]
+              },
+
+              // fade color <r g b>
+              {
+                type: "literal",
+                value: "color",
+                next: [
+                  { type: "int", name: "red" },
+                  { type: "int", name: "green" },
+                  { type: "int", name: "blue" }
+                ]
+              },
+
+              // simple 'fade' with optional parameters
+              { type: "literal", value: "", optional: true }
+            ]
+          },
+
+          // fov_set / fov_clear
+          {
+            value: "fov_set",
+            next: [
+              { type: "float", name: "fov_value" },
+              { type: "float", name: "fovEaseTime", optional: true },
+              {
+                type: "enum",
+                name: "fovEaseType",
+                optional: true,
+                value: [
+                  { value: "linear" },{ value: "spring" },{ value: "in_quad" },{ value: "out_quad" },
+                  { value: "in_out_quad" },{ value: "in_cubic" },{ value: "out_cubic" },{ value: "in_out_cubic" },
+                  { value: "in_quart" },{ value: "out_quart" },{ value: "in_out_quart" },{ value: "in_quint" },
+                  { value: "out_quint" },{ value: "in_out_quint" },{ value: "in_sine" },{ value: "out_sine" },
+                  { value: "in_out_sine" },{ value: "in_expo" },{ value: "out_expo" },{ value: "in_out_expo" },
+                  { value: "in_circ" },{ value: "out_circ" },{ value: "in_out_circ" },{ value: "in_bounce" },
+                  { value: "out_bounce" },{ value: "in_out_bounce" },{ value: "in_back" },{ value: "out_back" },
+                  { value: "in_out_back" },{ value: "in_elastic" },{ value: "out_elastic" },{ value: "in_out_elastic" }
+                ]
+              }
+            ]
+          },
+          {
+            value: "fov_clear",
+            next: [
+              { type: "float", name: "fovEaseTime", optional: true },
+              {
+                type: "enum",
+                name: "fovEaseType",
+                optional: true,
+                value: [
+                  { value: "linear" },{ value: "spring" },{ value: "in_quad" },{ value: "out_quad" },
+                  { value: "in_out_quad" },{ value: "in_cubic" },{ value: "out_cubic" },{ value: "in_out_cubic" },
+                  { value: "in_quart" },{ value: "out_quart" },{ value: "in_out_quart" },{ value: "in_quint" },
+                  { value: "out_quint" },{ value: "in_out_quint" },{ value: "in_sine" },{ value: "out_sine" },
+                  { value: "in_out_sine" },{ value: "in_expo" },{ value: "out_expo" },{ value: "in_out_expo" },
+                  { value: "in_circ" },{ value: "out_circ" },{ value: "in_out_circ" },{ value: "in_bounce" },
+                  { value: "out_bounce" },{ value: "in_out_bounce" },{ value: "in_back" },{ value: "out_back" },
+                  { value: "in_out_back" },{ value: "in_elastic" },{ value: "out_elastic" },{ value: "in_out_elastic" }
+                ]
+              }
+            ]
+          }
+
+        ] // end action values
+      } // end action enum
+    ] // end syntaxes
+  },
+
+
+  {
+    name: "camershake",
+    aliases: ["camershake"],
+    description: "Shake the camera",
+    syntaxes: [
+      { type: "literal", value: "/camershake" },
+      { type: "playerselector", name: "target" },
+      { type: "int", name: "duration", optional: true },
+      { type: "float", name: "intensity", optional: true }
+    ]
+  },
+
+  {
+    name: "clear",
+    aliases: ["clear"],
+    description: "Clear items from a player's inventory",
+    syntaxes: [
+      { type: "literal", value: "/clear" },
+      { type: "playerselector", name: "player", optional: true },
+      { type: "itemtype", name: "item", optional: true },
+      { type: "int", name: "data", optional: true }
+    ]
+  },
+
+  {
+    name: "clearspawnpoint",
+    aliases: ["clearspawnpoint"],
+    description: "Clear world spawnpoint or player's spawn",
+    syntaxes: [
+      { type: "literal", value: "/clearspawnpoint" },
+      { type: "playerselector", name: "player", optional: true }
+    ]
+  },
+
+  {
+    name: "clone",
+    aliases: ["clone"],
+    description: "Clone blocks from one region to another",
+    syntaxes: [
+      { type: "literal", value: "/clone" },
+      { type: "location", name: "begin" },
+      { type: "location", name: "end" },
+      { type: "location", name: "destination" },
+      {
+        type: "enum",
+        name: "mode",
+        optional: true,
+        value: [
+          { value: "replace" },
+          { value: "masked" },
+          { value: "filtered" }
+        ]
+      },
+      { type: "string", name: "filterBlock", optional: true }
+    ]
+  },
+
+  {
+    name: "damage",
+    aliases: ["damage"],
+    description: "Damage an entity",
+    syntaxes: [
+      { type: "literal", value: "/damage" },
+      { type: "entityselector", name: "target" },
+      { type: "int", name: "amount" },
+      { type: "string", name: "damagetype", optional: true },
+      { type: "entityselector", name: "source of the damage", optional: true },
+    ]
+  },
+
+  {
+    name: "dialogue",
+    aliases: ["dialogue"],
+    description: "Show dialogue to player (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/dialogue" },
+      { type: "playerselector", name: "player" },
+      { type: "string", name: "dialogueId" }
+    ]
+  },
+
+  {
+    name: "difficulty",
+    aliases: ["difficulty"],
+    description: "Set or query difficulty",
+    syntaxes: [
+      { type: "literal", value: "/difficulty" },
+      {
+        type: "enum",
+        name: "level",
+        value: [{ value: "peaceful" }, { value: "easy" }, { value: "normal" }, { value: "hard" }]
+      }
+    ]
+  },
+
+  {
+    name: "enchant",
+    aliases: ["enchant"],
+    vc_hiperlink: () => getCompatibleEnchantmentTypes(player.getComponent("minecraft:inventory")?.container?.getItem(player.selectedSlotIndex)).length > 0
+      ? visual_command_enchant(player)
+      : undefined,
+    description: "Apply an enchantment to an item",
+    syntaxes: [
+      { type: "literal", value: "/enchant" },
+      { type: "playerselector", name: "player" },
+      { type: "enchanttype", name: "enchantment" },
+      { type: "int", name: "level", optional: true }
+    ]
+  },
+
+  {
+    name: "event",
+    aliases: ["event"],
+    description: "Trigger a game event (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/event" },
+      { type: "string", name: "eventName" },
+      { type: "entityselector", name: "target", optional: true }
+    ]
+  },
+
+  {
+    name: "experience",
+    aliases: ["experience", "xp"],
+    description: "Grant or set experience points/levels",
+    syntaxes: [
+      { type: "literal", value: "/experience" },
+      { type: "playerselector", name: "player" },
+      { type: "int", name: "amount" },
+      {
+        type: "enum",
+        name: "type",
+        optional: true,
+        value: [{ value: "points" }, { value: "levels" }]
+      }
+    ]
+  },
+
+  {
+    name: "fog",
+    aliases: ["fog"],
+    description: "Control fog (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/fog" },
+
+      // optional: Ziel-Spieler/Targets
+      { type: "playerselector", name: "targets", optional: true },
+
+      // Hauptaktionen als enum; jede Aktion kann eigene Next-Parameter haben
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          // Setze Fog-Parameter direkt
+          {
+            value: "set",
+            next: [
+              // Dichte (0.0 - 1.0 typisch)
+              { type: "float", name: "density", optional: true },
+
+              // Farbe als RGB
+              {
+                type: "literal",
+                value: "color",
+                optional: true,
+                next: [
+                  { type: "int", name: "red" },
+                  { type: "int", name: "green" },
+                  { type: "int", name: "blue" }
+                ]
+              },
+
+              // Distanzbereich (start, optional end)
+              {
+                type: "literal",
+                value: "distance",
+                optional: true,
+                next: [
+                  { type: "float", name: "startDistance" },
+                  { type: "float", name: "endDistance", optional: true }
+                ]
+              },
+
+              // Übergang (Zeit + optionaler Easing-Typ)
+              {
+                type: "literal",
+                value: "transition",
+                optional: true,
+                next: [
+                  { type: "float", name: "timeSeconds" },
+                  {
+                    type: "enum",
+                    name: "easing",
+                    optional: true,
+                    value: [
+                      { value: "linear" },
+                      { value: "spring" },
+                      { value: "in_quad" },
+                      { value: "out_quad" },
+                      { value: "in_out_quad" },
+                      { value: "in_cubic" },
+                      { value: "out_cubic" },
+                      { value: "in_out_cubic" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+
+          // Setze eine vordefinierte Preset-Konfiguration
+          {
+            value: "preset",
+            next: [
+              {
+                type: "enum",
+                name: "presetName",
+                value: [
+                  { value: "default" },
+                  { value: "dense" },
+                  { value: "light" },
+                  { value: "haze" },
+                  { value: "underwater" }
+                ]
+              },
+
+              // optional: Übergangszeit beim Wechsel des Presets
+              { type: "float", name: "transitionTime", optional: true }
+            ]
+          },
+
+          // Einfache Farbänderung
+          {
+            value: "color",
+            next: [
+              { type: "int", name: "red" },
+              { type: "int", name: "green" },
+              { type: "int", name: "blue" }
+            ]
+          },
+
+          // Blend-Funktion: mischt von einer Farbe/Dichte zur anderen
+          {
+            value: "blend",
+            next: [
+              { type: "float", name: "durationSeconds" },
+              { type: "float", name: "fromDensity" },
+              { type: "int", name: "fromRed" },
+              { type: "int", name: "fromGreen" },
+              { type: "int", name: "fromBlue" },
+              { type: "float", name: "toDensity" },
+              { type: "int", name: "toRed" },
+              { type: "int", name: "toGreen" },
+              { type: "int", name: "toBlue" }
+            ]
+          },
+
+          // Entferne/kläre alle Fog-Overrides
+          { value: "clear" },
+
+          // Setze Fog so, dass es dem aktuellen Wetter folgt (wenn relevant)
+          { value: "follow_weather" },
+
+          // Schalte Fog ein/aus (Kurzform)
+          {
+            value: "toggle",
+            next: [{ type: "bool", name: "enabled", optional: true }]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "function",
+    aliases: ["function"],
+    description: "Run a function",
+    syntaxes: [
+      { type: "literal", value: "/function" },
+      { type: "string", name: "name" }
+    ]
+  },
+
+  {
+    name: "gamemode",
+    aliases: ["gamemode", "gm"],
+    description: "Set a player's game mode",
+    syntaxes: [
+      { type: "literal", value: "/gamemode" },
+      {
+        type: "enum",
+        name: "mode",
+        value: [{ value: "survival" }, { value: "creative" }, { value: "adventure" }, { value: "spectator" }]
+      },
+      { type: "playerselector", name: "target", optional: true }
+    ]
+  },
+
+  {
+    name: "gamerule",
+    aliases: ["gamerule"],
+    description: "Set or query a gamerule",
+    syntaxes: [
+      { type: "literal", value: "/gamerule" },
+      { type: "string", name: "rule" },
+      { type: "string", name: "value", optional: true }
+    ]
+  },
+
+  {
+    name: "hud",
+    aliases: ["hud"],
+    description: "Control HUD elements",
+    syntaxes: [
+      { type: "literal", value: "/hud" },
+      { type: "playerselector", name: "target" },
+      {
+        type: "enum",
+        name: "visible",
+        value: [
+          { value: "hide" },
+          { value: "reset" }
+        ]
+      },
+      {
+        type: "enum",
+        name: "hud_element",
+        optional: true,
+        value: [
+          { value: "hunger" },
+          { value: "all" },
+          { value: "paperdoll" },
+          { value: "armor" },
+          { value: "tooltips" },
+          { value: "touch_controls" },
+          { value: "crosshair" },
+          { value: "hotbar" },
+          { value: "health" },
+          { value: "progress_bar" },
+          { value: "air_bubbles" },
+          { value: "horse_health" },
+          { value: "status_effects" },
+          { value: "item_text" }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "inputpermission",
+    aliases: ["inputpermission"],
+    description: "Grant or revoke input permissions",
+    syntaxes: [
+      { type: "literal", value: "/inputpermission" },
+      {
+        type: "enum",
+        name: "subcommand",
+        value: [
+          { value: "set" },
+          { value: "reset" },
+          { value: "query" }
+        ]
+      },
+      { type: "playerselector", name: "player" },
+      {
+        type: "enum",
+        name: "permission",
+        optional: true,
+        value: [
+          { value: "camera" },
+          { value: "movement" },
+          { value: "jump" },
+          { value: "lateral_movement" },
+          { value: "sneak" },
+          { value: "dismount" },
+          { value: "mount" },
+          { value: "move_backward" },
+          { value: "move_forward" },
+          { value: "move_left" },
+          { value: "move_right" },
+          { value: "use_item" },
+          { value: "all" }
+        ]
+      },
+      { type: "bool", name: "value", optional: true }
+    ]
+  },
+
+  {
+    name: "kick",
+    aliases: ["kick"],
+    description: "Kick a player from the server",
+    syntaxes: [
+      { type: "literal", value: "/kick" },
+      { type: "playerselector", name: "player" },
+      { type: "string", name: "reason", optional: true }
+    ]
+  },
+
+  {
+    name: "kill",
+    aliases: ["kill"],
+    description: "Kill entities",
+    syntaxes: [
+      { type: "literal", value: "/kill" },
+      { type: "entityselector", name: "target", optional: true }
+    ]
+  },
+
+  {
+    name: "music",
+    aliases: ["music"],
+    description: "Play / queue / stop music tracks (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/music" },
+
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "play",
+            next: [
+              { type: "string", name: "trackName" },
+              { type: "float", name: "volume", optional: true },
+              { type: "float", name: "fadeSeconds", optional: true },
+              {
+                type: "enum",
+                name: "repeatMode",
+                optional: true,
+                value: [
+                  { value: "play_once" },
+                  { value: "loop" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "queue",
+            next: [
+              { type: "string", name: "trackName" },
+              { type: "float", name: "volume", optional: true },
+              { type: "float", name: "fadeSeconds", optional: true },
+              {
+                type: "enum",
+                name: "repeatMode",
+                optional: true,
+                value: [
+                  { value: "play_once" },
+                  { value: "loop" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "stop",
+            next: [
+              { type: "float", name: "fadeSeconds", optional: true }
+            ]
+          },
+
+          {
+            value: "volume",
+            next: [
+              { type: "float", name: "volume" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "particle",
+    aliases: ["particle"],
+    description: "Spawn particles",
+    syntaxes: [
+      { type: "literal", value: "/particle" },
+      { type: "string", name: "particleName" },
+      { type: "location", name: "pos", optional: true },
+      { type: "int", name: "count", optional: true }
+    ]
+  },
+
+  {
+    name: "playanimation",
+    aliases: ["playanimation"],
+    description: "Play an animation on an entity",
+    syntaxes: [
+      { type: "literal", value: "/playanimation" },
+      { type: "entityselector", name: "target" },
+      { type: "string", name: "animation" }
+    ]
+  },
+
+  {
+    name: "recipe",
+    aliases: ["recipe"],
+    description: "Grant or revoke recipes",
+    syntaxes: [
+      { type: "literal", value: "/recipe" },
+      { type: "playerselector", name: "player" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "give",
+            next: [
+              { type: "string", name: "recipeName", optional: true },
+              { type: "string", name: "recipeNamespace", optional: true }
+            ]
+          },
+          {
+            value: "take",
+            next: [
+              { type: "string", name: "recipeName", optional: true },
+              { type: "string", name: "recipeNamespace", optional: true }
+            ]
+          },
+          {
+            value: "grant",
+            next: [
+              { type: "string", name: "recipeName", optional: true },
+              { type: "string", name: "recipeNamespace", optional: true }
+            ]
+          },
+          {
+            value: "revoke",
+            next: [
+              { type: "string", name: "recipeName", optional: true },
+              { type: "string", name: "recipeNamespace", optional: true }
+            ]
+          },
+          {
+            value: "all" // no next parameters needed
+          },
+          {
+            value: "none" // no next parameters needed
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "replaceitem",
+    aliases: ["replaceitem"],
+    description: "Replaces items in inventories or block containers",
+    syntaxes: [
+      { type: "literal", value: "/replaceitem" },
+      {
+        type: "enum",
+        name: "targetType",
+        value: [
+          {
+            value: "entity",
+            next: [
+              { type: "entityselector", name: "target" },
+              { type: "string", name: "slot" },
+              { type: "itemtype", name: "item" },
+              { type: "int", name: "count", optional: true },
+              { type: "int", name: "data", optional: true },
+              { type: "json", name: "components", optional: true }
+            ]
+          },
+          {
+            value: "block",
+            next: [
+              { type: "location", name: "pos" },
+              { type: "string", name: "slot" },
+              { type: "itemtype", name: "item" },
+              { type: "int", name: "count", optional: true },
+              { type: "int", name: "data", optional: true },
+              { type: "json", name: "components", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "ride",
+    aliases: ["ride"],
+    description: "Manage entity riding (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/ride" },
+      { type: "entityselector", name: "rider" },
+
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "start_riding",
+            next: [
+              { type: "entityselector", name: "ridee" },
+              {
+                type: "enum",
+                name: "teleportRules",
+                optional: true,
+                value: [
+                  { value: "teleport_rider" },
+                  { value: "teleport_ridee" },
+                  { value: "never" }
+                ]
+              },
+              {
+                type: "enum",
+                name: "rideRules",
+                optional: true,
+                value: [
+                  { value: "no_ride_change" },
+                  { value: "allow_stacking" },
+                  { value: "replace_rides" }
+                ]
+              }
+            ]
+          },
+
+          { value: "stop_riding" },
+
+          {
+            value: "evict_riders",
+            next: [
+              { type: "entityselector", name: "ridee" }
+            ]
+          },
+
+          {
+            value: "summon_rider",
+            next: [
+              { type: "entityType", name: "entity" },
+              { type: "location", name: "spawnPos", optional: true },
+              { type: "string", name: "spawnEvent", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "schedule",
+    aliases: ["schedule"],
+    description: "Schedule a function or command",
+    syntaxes: [
+      { type: "literal", value: "/schedule" },
+
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "function",
+            next: [
+              { type: "string", name: "functionName" },
+              { type: "int", name: "ticks" },
+              { type: "string", name: "target", optional: true }
+            ]
+          },
+          {
+            value: "add",
+            next: [
+              { type: "string", name: "functionName" },
+              { type: "int", name: "ticks" },
+              { type: "string", name: "target", optional: true }
+            ]
+          },
+          {
+            value: "run",
+            next: [
+              { type: "string", name: "functionName" },
+              { type: "string", name: "target", optional: true }
+            ]
+          },
+          {
+            value: "clear",
+            next: [
+              { type: "string", name: "functionName", optional: true },
+              { type: "string", name: "target", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "scoreboard",
+    aliases: ["scoreboard"],
+    description: "Manage objectives, players, and teams",
+    syntaxes: [
+      { type: "literal", value: "/scoreboard" },
+
+      {
+        type: "enum",
+        name: "subcommand",
+        value: [
+          {
+            value: "objectives",
+            next: [
+              {
+                type: "enum",
+                name: "action",
+                value: [
+                  {
+                    value: "add",
+                    next: [
+                      { type: "string", name: "objective" },
+                      { type: "string", name: "criteria", optional: true },
+                      { type: "string", name: "displayName", optional: true }
+                    ]
+                  },
+                  {
+                    value: "remove",
+                    next: [{ type: "string", name: "objective" }]
+                  },
+                  {
+                    value: "setdisplay",
+                    next: [
+                      {
+                        type: "enum",
+                        name: "slot",
+                        value: [
+                          { value: "list" },
+                          { value: "sidebar" },
+                          { value: "belowName" }
+                        ]
+                      },
+                      { type: "string", name: "objective", optional: true }
+                    ]
+                  },
+                  { value: "list" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "players",
+            next: [
+              {
+                type: "enum",
+                name: "action",
+                value: [
+                  {
+                    value: "add",
+                    next: [
+                      { type: "playerselector", name: "player" },
+                      { type: "string", name: "objective" },
+                      { type: "int", name: "score", optional: true }
+                    ]
+                  },
+                  {
+                    value: "remove",
+                    next: [
+                      { type: "playerselector", name: "player" },
+                      { type: "string", name: "objective", optional: true }
+                    ]
+                  },
+                  {
+                    value: "set",
+                    next: [
+                      { type: "playerselector", name: "player" },
+                      { type: "string", name: "objective" },
+                      { type: "int", name: "score" }
+                    ]
+                  },
+                  {
+                    value: "reset",
+                    next: [
+                      { type: "playerselector", name: "player", optional: true },
+                      { type: "string", name: "objective", optional: true }
+                    ]
+                  },
+                  { value: "list", next: [{ type: "playerselector", name: "player", optional: true }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "setworldspawn",
+    aliases: ["setworldspawn"],
+    description: "Set the world spawn position",
+    syntaxes: [
+      { type: "literal", value: "/setworldspawn" },
+      { type: "location", name: "pos", optional: true }
+    ]
+  },
+
+  {
+    name: "spawnpoint",
+    aliases: ["spawnpoint"],
+    description: "Set a player's spawnpoint",
+    syntaxes: [
+      { type: "literal", value: "/spawnpoint" },
+      { type: "playerselector", name: "player", optional: true },
+      { type: "location", name: "pos", optional: true }
+    ]
+  },
+
+  {
+    name: "spreadplayers",
+    aliases: ["spreadplayers"],
+    description: "Spread entities around a point",
+    syntaxes: [
+      { type: "literal", value: "/spreadplayers" },
+      { type: "location", name: "center" },
+      { type: "float", name: "spreadDistance" },
+      { type: "float", name: "maxRange" },
+      { type: "entityselector", name: "targets" }
+    ]
+  },
+
+  {
+    name: "stopsound",
+    aliases: ["stopsound"],
+    description: "Stop sounds for players",
+    syntaxes: [
+      { type: "literal", value: "/stopsound" },
+      { type: "playerselector", name: "targets" },
+      { type: "string", name: "sound", optional: true }
+    ]
+  },
+
+  {
+    name: "structure",
+    aliases: ["structure"],
+    description: "Save, load, or manage structures",
+    syntaxes: [
+      { type: "literal", value: "/structure" },
+
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "save",
+            next: [
+              { type: "string", name: "structureName" },
+              { type: "location", name: "pos1" },
+              { type: "location", name: "pos2" },
+              {
+                type: "enum",
+                name: "mode",
+                optional: true,
+                value: [
+                  { value: "replace" },
+                  { value: "keep" },
+                  { value: "merge" }
+                ]
+              },
+              {
+                type: "bool",
+                name: "includeEntities",
+                optional: true
+              }
+            ]
+          },
+
+          {
+            value: "load",
+            next: [
+              { type: "string", name: "structureName" },
+              { type: "location", name: "destination" },
+              {
+                type: "enum",
+                name: "mode",
+                optional: true,
+                value: [
+                  { value: "replace" },
+                  { value: "ignore" },
+                  { value: "masked" }
+                ]
+              },
+              {
+                type: "bool",
+                name: "includeEntities",
+                optional: true
+              },
+              {
+                type: "enum",
+                name: "rotation",
+                optional: true,
+                value: [
+                  { value: "0" },
+                  { value: "90" },
+                  { value: "180" },
+                  { value: "270" }
+                ]
+              },
+              {
+                type: "enum",
+                name: "mirror",
+                optional: true,
+                value: [
+                  { value: "none" },
+                  { value: "left_right" },
+                  { value: "front_back" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "delete",
+            next: [
+              { type: "string", name: "structureName" }
+            ]
+          },
+
+          {
+            value: "list"
+          },
+
+          {
+            value: "export",
+            next: [
+              { type: "string", name: "structureName" },
+              { type: "string", name: "fileName", optional: true }
+            ]
+          },
+
+          {
+            value: "import",
+            next: [
+              { type: "string", name: "fileName" },
+              { type: "string", name: "structureName", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "tag",
+    aliases: ["tag"],
+    description: "Add/remove/list tags on entities",
+    syntaxes: [
+      { type: "literal", value: "/tag" },
+      {
+        type: "entityselector",
+        name: "target"
+      },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "add",
+            next: [
+              { type: "string", name: "tag" }
+            ]
+          },
+          {
+            value: "remove",
+            next: [
+              { type: "string", name: "tag" }
+            ]
+          },
+          {
+            value: "list"
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "tellraw",
+    aliases: ["tellraw"],
+    description: "Send JSON-formatted chat messages",
+    syntaxes: [
+      { type: "literal", value: "/tellraw" },
+      { type: "playerselector", name: "target" },
+      { type: "json", name: "message" }
+    ]
+  },
+
+  {
+    name: "testfor",
+    aliases: ["testfor"],
+    description: "Test for entities matching criteria",
+    syntaxes: [
+      { type: "literal", value: "/testfor" },
+      { type: "entityselector", name: "target" }
+    ]
+  },
+
+  {
+    name: "testforblock",
+    aliases: ["testforblock"],
+    description: "Test a single block for a type/state",
+    syntaxes: [
+      { type: "literal", value: "/testforblock" },
+      { type: "location", name: "pos" },
+      { type: "blocktype", name: "block" },
+      { type: "string", name: "data", optional: true }
+    ]
+  },
+
+  {
+    name: "testforblocks",
+    aliases: ["testforblocks"],
+    description: "Test that two regions contain identical blocks",
+    syntaxes: [
+      { type: "literal", value: "/testforblocks" },
+      { type: "location", name: "begin" },
+      { type: "location", name: "end" },
+      { type: "location", name: "destination" },
+      {
+        type: "enum",
+        name: "mode",
+        optional: true,
+        value: [
+          { value: "all" },
+          { value: "masked" },
+          {
+            value: "filtered",
+            next: [
+              { type: "blocktype", name: "filterBlock", optional: true },
+              { type: "string", name: "filterData", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "tickingarea",
+    aliases: ["tickingarea"],
+    description: "Manage ticking areas (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/tickingarea" },
+
+      {
+        type: "enum",
+        name: "subcommand",
+        value: [
+          {
+            value: "add",
+            next: [
+              {
+                type: "location",
+                name: "pos1"
+              },
+              {
+                type: "location",
+                name: "pos2",
+                optional: true
+              },
+              {
+                type: "string",
+                name: "name",
+                optional: true
+              }
+            ]
+          },
+          {
+            value: "remove",
+            next: [
+              {
+                type: "string",
+                name: "name"
+              }
+            ]
+          },
+          {
+            value: "list"
+          },
+          {
+            value: "remove_all"
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "time",
+    aliases: ["time"],
+    description: "Change or query the time",
+    vc_hiperlink: () => visual_command_time(player),
+    syntaxes: [
+      { type: "literal", value: "/time" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "set",
+            next: [
+              {
+                type: "enum",
+                name: "timeType",
+                value: [
+                  { value: "day" },
+                  { value: "night" },
+                  { value: "noon" },
+                  { value: "midnight" }
+                ],
+                optional: true
+              },
+              { type: "int", name: "ticks", optional: true }
+            ]
+          },
+          {
+            value: "add",
+            next: [
+              { type: "int", name: "ticks" }
+            ]
+          },
+          {
+            value: "query",
+            next: [
+              {
+                type: "enum",
+                name: "queryType",
+                value: [
+                  { value: "daytime" },
+                  { value: "gametime" },
+                  { value: "day" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+
+  {
+    name: "title",
+    aliases: ["title"],
+    description: "Display titles to players",
+    syntaxes: [
+      { type: "literal", value: "/title" },
+      { type: "playerselector", name: "player" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "title",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          },
+          {
+            value: "subtitle",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          },
+          {
+            value: "actionbar",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          },
+          {
+            value: "times",
+            next: [
+              { type: "int", name: "fadeIn" },
+              { type: "int", name: "stay" },
+              { type: "int", name: "fadeOut" }
+            ]
+          },
+          { value: "clear" },
+          { value: "reset" }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "titleraw",
+    aliases: ["titleraw"],
+    description: "Display raw JSON titles",
+    syntaxes: [
+      { type: "literal", value: "/titleraw" },
+      { type: "playerselector", name: "player" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "title",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          },
+          {
+            value: "subtitle",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          },
+          {
+            value: "actionbar",
+            next: [
+              { type: "string", name: "text" }
+            ]
+          }
+        ]
+      },
+      { type: "json", name: "message" }
+    ]
+  },
+
+  {
+    name: "toggledownfall",
+    aliases: ["toggledownfall"],
+    description: "Toggle rain/snow",
+    syntaxes: [{ type: "literal", value: "/toggledownfall" }]
+  }
 ];
 
 let block_command_list = [
@@ -964,13 +2470,13 @@ function create_player_save_data(playerId, playerName) {
   };
 
   if (player_sd_index === -1) {
-      // Player does not exist, create new entry
-      print(`Player ${playerName} (${playerId}) added!`);
+      // player does not exist, create new entry
+      print(`player ${playerName} (${playerId}) added!`);
 
       player_data = default_player_save_data_structure();
       save_data.push(player_data);
   } else {
-      // Player exists, get their data
+      // player exists, get their data
       player_data = save_data[player_sd_index];
 
       // Update player name if it's different
@@ -1429,502 +2935,219 @@ world.afterEvents.weatherChange.subscribe(ev => {
  Command fixing helpers
 -------------------------*/
 
-function levenshtein(a = "", b = "") {
-  a = String(a);
-  b = String(b);
-  const al = a.length, bl = b.length;
-  if (al === 0) return bl;
-  if (bl === 0) return al;
-  const dp = Array.from({ length: al + 1 }, () => Array(bl + 1).fill(0));
-  for (let i = 0; i <= al; i++) dp[i][0] = i;
-  for (let j = 0; j <= bl; j++) dp[0][j] = j;
-  for (let i = 1; i <= al; i++) {
-    for (let j = 1; j <= bl; j++) {
+// Levenshtein-Distanz
+function levenshtein(a, b) {
+  const dp = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
     }
   }
-  return dp[al][bl];
+  return dp[a.length][b.length];
 }
 
-function fuzzyBest(input, candidates = [], maxAcceptDist = 2, relThresh = 0.4) {
-  input = String(input || "").toLowerCase();
-  let best = { cand: null, dist: Infinity };
-  for (const c of candidates) {
-    const cLower = String(c).toLowerCase();
-    const d = levenshtein(input, cLower);
-    if (d < best.dist) best = { cand: c, dist: d };
+// Find closest match
+function findClosest(input, list, typeName = "") {
+  if (!list || list.length === 0) {
+    print(`[DEBUG] Liste für Typ "${typeName}" ist leer!`);
+    return null;
   }
-  if (!best.cand) return { accept: false, best: null, suggestions: [] };
-  const rel = best.dist / Math.max(input.length, String(best.cand).length, 1);
-  const accept = best.dist <= maxAcceptDist || rel <= relThresh;
-  // also prepare top 3 suggestions
-  const scored = candidates.map(c => ({ c, d: levenshtein(input, String(c).toLowerCase()) }))
-    .sort((a, b) => a.d - b.d)
-    .slice(0, 3)
-    .map(x => x.c);
-  return { accept, best: best.cand, dist: best.dist, rel, suggestions: scored };
+  let closest = list[0];
+  let minDist = levenshtein(input.toLowerCase(), closest.toLowerCase());
+  for (const item of list) {
+    const dist = levenshtein(input.toLowerCase(), item.toLowerCase());
+    if (dist < minDist) {
+      minDist = dist;
+      closest = item;
+    }
+  }
+  print(`[DEBUG] findClosest: "${input}" -> "${closest}" (Typ: ${typeName})`);
+  return closest;
 }
 
-function splitArgsPreserveJSON(str) {
-  // Split on whitespace but preserve quoted strings, {...} JSON and [...] selector brackets
-  // Approach: walk char-by-char, track stack for quotes/braces/brackets
-  const out = [];
-  let cur = "";
+// Spezialfall: entityselector & playerselector
+function fixSelector(input) {
+  const validSelectors = ["@a", "@r", "@e", "@p", "@s"];
+  if (validSelectors.includes(input)) {
+    print(`[DEBUG] Selector "${input}" is in ${JSON.parse(validSelectors)}.`);
+    return input;
+  }
+  const playerNames = Array.from(world.getAllPlayers()).map(p => p.name);
+  print(`[DEBUG] Available players: ${playerNames.join(", ")}`);
+  const closestPlayer = findClosest(input, playerNames, "playerselector/entityselector");
+  return closestPlayer || input;
+}
+
+// Prüft Location auf gültiges Format
+function isValidLocation(input) {
+  const parts = input.split(" ");
+  if (parts.length !== 3) return false;
+  return parts.every(p => /^~?$/.test(p) || !isNaN(parseFloat(p)));
+}
+
+// Prüft JSON auf matching braces / quotes
+function isValidJson(input) {
   const stack = [];
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    const top = stack[stack.length - 1];
-    if (ch === '"' || ch === "'") {
-      if (top && top.type === "quote" && top.char === ch) {
-        // close quote
-        stack.pop();
-        cur += ch;
-      } else if (!top || top.type !== "quote") {
-        // open quote
-        stack.push({ type: "quote", char: ch });
-        cur += ch;
-      } else {
-        cur += ch;
-      }
-    } else if ((ch === "{" || ch === "[") && (!top || top.type !== "quote")) {
-      stack.push({ type: ch === "{" ? "brace" : "bracket", char: ch });
-      cur += ch;
-    } else if ((ch === "}" || ch === "]") && (!top || top.type !== "quote")) {
-      // pop matching
-      if (stack.length && ((ch === "}" && stack[stack.length - 1].type === "brace") || (ch === "]" && stack[stack.length - 1].type === "bracket"))) {
-        stack.pop();
-        cur += ch;
-      } else {
-        // unmatched - still append
-        cur += ch;
-      }
-    } else if (/\s/.test(ch) && stack.length === 0) {
-      if (cur.length) { out.push(cur); cur = ""; }
-      // skip extra spaces
-      while (i + 1 < str.length && /\s/.test(str[i + 1])) i++;
-    } else {
-      cur += ch;
+  const pairs = { "{": "}", "[": "]", "(": ")", '"': '"' };
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char === "\\" && i + 1 < input.length) { i++; continue; }
+    if ("{[(\"".includes(char)) stack.push(char);
+    else if ("}])\"".includes(char)) {
+      if (stack.length === 0) return false;
+      const last = stack.pop();
+      if (pairs[last] !== char) return false;
     }
   }
-  if (cur.length) out.push(cur);
-  return out;
+  return stack.length === 0;
 }
 
-function tryMatchItemType(token) {
-  // token like "minecraft:diamond_sword" or "diamond_sword"
-  try {
-    if (typeof ItemTypes !== "undefined" && ItemTypes && typeof ItemTypes.getAll() === "function") {
-      // try with and without minecraft: prefix
-      const candidates = [
-        token,
-        token.startsWith("minecraft:") ? token : `minecraft:${token}`
-      ];
-      for (const c of candidates) {
-        try {
-          const it = ItemTypes.getAll(c);
-          if (it) return c; // return canonical string we tested
-        } catch (e) { /* ignore */ }
-      }
+function fixArgument(typeDef, input) {
+  // typeDef kann entweder ein String ("int","itemtype",...) oder ein Objekt { name: "enum", value: [...] } sein
+  const typeName = (typeof typeDef === "string") ? typeDef.toLowerCase() : (typeDef.name || "").toLowerCase();
+  print(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
+
+  // Hilfsfunktion: getKeysFromGetAll() nimmt entweder ein Array von {id:...} oder ein Objekt und liefert eine String-Liste
+  function getKeysFromGetAll(getAllResult) {
+    if (Array.isArray(getAllResult)) {
+      return getAllResult.map(e => (e && e.id) ? e.id : e);
     }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-function tryMatchEntityType(token) {
-  try {
-    if (typeof EntityTypes !== "undefined" && EntityTypes && typeof EntityTypes.getAll() === "function") {
-      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
-      for (const c of candidates) {
-        try {
-          const et = EntityTypes.get(c);
-          if (et) return c;
-        } catch (e) { /* ignore */ }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-function tryMatchEffectType(token) {
-  try {
-    if (typeof EffectTypes !== "undefined" && EffectTypes && typeof EffectTypes.getAll() === "function") {
-      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
-      for (const c of candidates) {
-        try {
-          const ef = EffectTypes.getAll(c);
-          if (ef) return c;
-        } catch (e) { /* ignore */ }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-function tryMatchEnchantment(token) {
-  try {
-    if (typeof EnchantmentTypes !== "undefined" && EnchantmentTypes && typeof EnchantmentTypes.getAll() === "function") {
-      const candidates = [token, token.startsWith("minecraft:") ? token : `minecraft:${token}`];
-      for (const c of candidates) {
-        try {
-          const en = EnchantmentTypes.getAll(c);
-          if (en) return c;
-        } catch (e) { /* ignore */ }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null;
-}
-
-
-///////////////////////
-// Selector parsing & correction
-///////////////////////
-
-const VALID_SELECTOR_KEYS = [
-  "name","type","tag","team","scores","limit","c","sort",
-  "x","y","z","dx","dy","dz","distance","distance","distance_min","distance_max",
-  "r","rm","distance","distance","family"
-]; // common possible keys — fuzzy corrected
-
-function parseSelector(token) {
-  // token examples:
-  // "@p", "@a[r=5]", "@e[type=minecraft:zombie,limit=3,name=\"Timmy\"]"
-  const m = token.match(/^@([pares])(?:\[(.*)\])?$/i);
-  if (!m) return null;
-  const at = m[0]; // full
-  const selectorType = m[1]; // p,a,r,e,s
-  const body = m[2]; // inner
-  const parsed = { raw: token, type: selectorType, args: {} };
-  if (!body) return parsed;
-
-  // split body by commas not in quotes
-  const parts = [];
-  let cur = "";
-  let inQuote = false;
-  for (let i = 0; i < body.length; i++) {
-    const ch = body[i];
-    if (ch === '"' || ch === "'") {
-      inQuote = !inQuote;
-      cur += ch;
-    } else if (ch === ',' && !inQuote) {
-      parts.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
-  }
-  if (cur.length) parts.push(cur);
-
-  for (const p of parts) {
-    const eqIdx = p.indexOf("=");
-    if (eqIdx === -1) {
-      // key only? treat as boolean flag
-      const key = p.trim();
-      parsed.args[key] = true;
-      continue;
-    }
-    const key = p.slice(0, eqIdx).trim();
-    let val = p.slice(eqIdx + 1).trim();
-    // strip quotes if present
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1);
-    }
-    parsed.args[key] = val;
-  }
-  return parsed;
-}
-
-function fixSelector(parsed) {
-  // parsed: returned from parseSelector
-  if (!parsed) return { fixed: null, corrections: [] };
-  const corrections = [];
-  const fixedArgs = {};
-  // correct each key fuzzy
-  const keys = Object.keys(parsed.args);
-  for (const key of keys) {
-    const val = parsed.args[key];
-    const keyCand = fuzzyBest(key, VALID_SELECTOR_KEYS, 2, 0.4);
-    let finalKey = key;
-    if (keyCand.accept && keyCand.best) {
-      if (keyCand.best !== key) {
-        corrections.push({ kind: "selector_key", from: key, to: keyCand.best });
-        finalKey = keyCand.best;
-      }
-    }
-    // value corrections depending on key
-    let finalVal = val;
-    if (finalKey === "type") {
-      // try entity type match
-      const matched = tryMatchEntityType(val) || fuzzyBest(val, Object.keys(EntityTypes || {})).best;
-      if (matched && matched !== val) {
-        corrections.push({ kind: "selector_value", key: finalKey, from: val, to: matched });
-        finalVal = matched;
-      }
-    } else if (finalKey === "name") {
-      // ensure it is quoted in final string (value itself kept as-is)
-      if (typeof finalVal === "string" && !/^".*"$/i.test(finalVal)) {
-        // we'll quote when building string; keep value
-      }
-    } else if (["r","rm","limit","c","dx","dy","dz","x","y","z","distance"].includes(finalKey)) {
-      // numeric expected
-      const parsedNum = Number(finalVal);
-      if (isNaN(parsedNum)) {
-        // attempt to strip non-numeric chars
-        const digits = (String(finalVal).match(/-?\d+(\.\d+)?/) || [null])[0];
-        if (digits) {
-          corrections.push({ kind: "selector_value_numeric_fix", key: finalKey, from: finalVal, to: digits });
-          finalVal = digits;
-        }
-      }
-    } else if (finalKey === "tag") {
-      // tag strings commonly simple; keep
-    } else if (finalKey === "scores") {
-      // scores can be complex JSON-like; keep
-    }
-    fixedArgs[finalKey] = finalVal;
+    return Object.keys(getAllResult || {});
   }
 
-  // build selector string back
-  const parts = [];
-  for (const k of Object.keys(fixedArgs)) {
-    let v = fixedArgs[k];
-    // quote name/tag values containing non-word chars
-    if (typeof v === "string" && (v.includes(" ") || /[^A-Za-z0-9_.:-]/.test(v))) {
-      v = `"${v}"`;
+  switch (typeName) {
+    case "literal": return input;
+    case "string":
+      return /\s/.test(input) ? `"${input}"` : input;
+    case "int": return isNaN(parseInt(input, 10)) ? "0" : input;
+    case "float": return isNaN(parseFloat(input)) ? "0.0" : input;
+    case "bool": return (typeof input === "string" && ["true","false"].includes(input.toLowerCase())) ? input.toLowerCase() : "false";
+    case "location": return isValidLocation(input) ? input : "~ ~ ~";
+    case "blocktype": {
+      const keys = getKeysFromGetAll(BlockTypes.getAll());
+      return findClosest(input, keys, "blocktype");
     }
-    parts.push(`${k}=${v}`);
+    case "itemtype": {
+      // Hilfsfunktion: ids aus Array von Objekten ziehen
+      function extractIds(list) {
+        return Array.isArray(list) ? list.map(e => (e && e.id) ? e.id : e) : Object.keys(list || {});
+      }
+
+      const itemIds = extractIds(ItemTypes.getAll());
+      const blockIds = extractIds(BlockTypes.getAll());
+
+      // Kombinieren & Duplikate vermeiden
+      const allIds = Array.from(new Set([...itemIds, ...blockIds]));
+
+      return findClosest(input, allIds, "itemtype");
+    }
+
+    case "entitytype": {
+      const keys = getKeysFromGetAll(EntityTypes.getAll());
+      return findClosest(input, keys, "entityType");
+    }
+    case "effecttype": {
+      const keys = getKeysFromGetAll(EffectTypes.getAll());
+      return findClosest(input, keys, "effectType");
+    }
+    case "enchanttype": {
+      const keys = getKeysFromGetAll(EnchantmentTypes.getAll());
+      return findClosest(input, keys, "enchanttype");
+    }
+    case "weathertype": {
+      const keys = getKeysFromGetAll(WeatherType.getAll());
+      return findClosest(input, keys, "weathertype");
+    }
+    case "playerselector": return fixSelector(input);
+    case "entityselector": return fixSelector(input);
+    case "enum": {
+      // typeDef muss hier ein Objekt mit .value (Array) sein
+      if (!typeDef || !Array.isArray(typeDef.value)) return input;
+      const enumVals = typeDef.value.map(v => (typeof v === "object" && v.value) ? v.value : v);
+      return findClosest(input, enumVals, "enum");
+    }
+    case "json": return isValidJson(input) ? input : "{}";
+    default: return input;
   }
-  const inner = parts.join(",");
-  const final = inner.length ? `@${parsed.type}[${inner}]` : `@${parsed.type}`;
-  return { fixed: final, corrections };
 }
 
-function normalizeCommandName(candidate) {
-  // remove leading slash and toLower
-  return candidate.startsWith("/") ? candidate.slice(1).toLowerCase() : candidate.toLowerCase();
+// Rekursive Funktion für verschachtelte next-Parameter
+function fixSyntax(parts, syntaxList, index = 0) {
+  const fixedParts = [];
+  let fixAvailable = false;
+
+  for (let i = 0; i < syntaxList.length && index < parts.length; i++) {
+    const syntax = syntaxList[i];
+    const part = parts[index];
+
+    if (!syntax) {
+      fixedParts.push(part);
+      index++;
+      continue;
+    }
+
+    let fixed = fixArgument(syntax.type, part);
+    if (fixed !== part) fixAvailable = true;
+    fixedParts.push(fixed);
+    index++;
+
+    // Prüfe verschachtelte next-Optionen
+    if (syntax.next && syntax.next.length > 0 && index < parts.length) {
+      const { fixedParts: nestedParts, fixAvailable: nestedFix } = fixSyntax(parts.slice(index), syntax.next, 0);
+      fixedParts.push(...nestedParts);
+      if (nestedFix) fixAvailable = true;
+      index += nestedParts.length;
+    }
+  }
+
+  return { fixedParts, fixAvailable, index };
 }
 
-function buildCandidatesList() {
-  const candidates = [];
-  for (const cmd of command_list) {
-    candidates.push(cmd.name.toLowerCase());
-    if (Array.isArray(cmd.aliases)) for (const a of cmd.aliases) candidates.push(a.toLowerCase());
+function correctCommand(inputCommand, commandList) {
+  print(`[DEBUG] Eingabe-Command: "${inputCommand}"`);
+
+  const trimmed = inputCommand.trim();
+  const hadLeadingSlash = trimmed.startsWith("/");
+
+  // entferne genau ein führendes "/" (falls vorhanden) bevor wir splitten
+  const withoutSlash = trimmed.replace(/^\//, "");
+  const parts = withoutSlash.split(/\s+/);
+
+  const cmdLiteral = parts[0]; // jetzt ohne "/"
+
+  // Command-Namen / Alias via Levenshtein
+  const commandNames = commandList.map(c => c.name).concat(commandList.flatMap(c => c.aliases || []));
+  const closestCommandName = findClosest(cmdLiteral, commandNames, "command");
+  const command = commandList.find(c => c.name === closestCommandName || (c.aliases || []).includes(closestCommandName));
+
+  if (!command) return { fix_available: false, command: inputCommand };
+
+  print(`[DEBUG] Gefundenes Command: "${command.name}"`);
+
+  // Ersetze das erste Token durch den 'korrekten' Command-Namen (wichtig!)
+  parts[0] = command.name;
+
+  const { fixedParts, fixAvailable } = fixSyntax(parts, command.syntaxes);
+  const fixedCommand = (hadLeadingSlash ? "/" : "") + fixedParts.join(" ");
+
+  print(`[DEBUG] Korrigierter Command: "${fixedCommand}" fix_available=${fixAvailable}`);
+
+  // vc_hiperlink hinzufügen, wenn vorhanden
+  const result = { fix_available: fixAvailable, command: fixedCommand };
+  if (command.vc_hiperlink !== undefined) {
+    result.vc_hiperlink = command.vc_hiperlink;
   }
-  return [...new Set(candidates)];
+
+  return result;
 }
 
-function fixSubArgsAccordingToCmd(cmdDef, restTokens) {
-  // If no definition or definition has a single 'rest' argument, try generic fixes:
-  const corrections = [];
-  if (!cmdDef || !cmdDef.syntaxes || cmdDef.syntaxes.length === 0) {
-    // attempt generic selector + json fixes across tokens
-    const fixedTokens = restTokens.map(t => {
-      if (/^@/.test(t)) {
-        const parsed = parseSelector(t);
-        if (parsed) {
-          const f = fixSelector(parsed);
-          if (f.corrections.length) corrections.push(...f.corrections);
-          return f.fixed;
-        }
-      }
-      return t;
-    });
-    return { fixedArgsString: fixedTokens.join(" "), corrections };
-  }
-
-  // Use the first syntax variant for matching (could be improved by picking the best matching variant)
-  const parts = cmdDef.syntaxes[0].parts;
-  const outParts = [];
-  let rtIdx = 0;
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (part.type === "literal") {
-      // not present in rest tokens (literal is the command itself) — skip
-      continue;
-    }
-    if (part.type === "rest" || part.type === "anything" || part.type === "components" || part.type === "json") {
-      // consume remaining tokens and join
-      const remaining = restTokens.slice(rtIdx);
-      if (remaining.length) {
-        // if json, don't touch; if components, keep intact; else attempt selectors inside
-        const joined = remaining.join(" ");
-        // try to parse selectors inside joined if present
-        // simple approach: replace any @... occurrences with fixed versions
-        const replaced = joined.replace(/@([pares])(?:\[(?:[^\]]*)\])?/ig, (m) => {
-          const parsed = parseSelector(m);
-          if (!parsed) return m;
-          const f = fixSelector(parsed);
-          if (f.corrections.length) corrections.push(...f.corrections);
-          return f.fixed;
-        });
-        outParts.push(replaced);
-      }
-      rtIdx = restTokens.length;
-      break; // rest consumes everything
-    }
-
-    // normal single-arg parts
-    const token = restTokens[rtIdx];
-    if (token === undefined) {
-      if (part.optional) {
-        continue;
-      } else {
-        // missing required arg
-        break;
-      }
-    }
-    // handle by part.type
-    if (part.type === "player" || part.type === "player_or_selector" || part.type === "selector_or_player") {
-      if (/^@/.test(token)) {
-        const parsed = parseSelector(token);
-        if (parsed) {
-          const f = fixSelector(parsed);
-          if (f.corrections.length) corrections.push(...f.corrections);
-          outParts.push(f.fixed);
-        } else {
-          outParts.push(token);
-        }
-      } else {
-        // try to check in-game players if possible
-        let finalName = token;
-        try {
-          if (typeof world !== "undefined" && world && typeof world.getPlayers === "function") {
-            const players = world.getPlayers();
-            // collect player names
-            const names = [];
-            for (const p of players) {
-              try { names.push(p.name); } catch(e) {}
-            }
-            const pMatch = fuzzyBest(token, names, 2, 0.33);
-            if (pMatch.accept && pMatch.best !== token) {
-              corrections.push({ kind: "player_name", from: token, to: pMatch.best });
-              finalName = pMatch.best;
-            }
-          } else {
-            // fallback: keep as-is
-            finalName = token;
-          }
-        } catch (e) {
-          finalName = token;
-        }
-        outParts.push(finalName);
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "item") {
-      // try script API ItemTypes
-      const matched = tryMatchItemType(token);
-      if (matched) {
-        if (matched !== token) corrections.push({ kind: "item", from: token, to: matched });
-        outParts.push(matched);
-      } else {
-        // fuzzy fallback: if token lacks prefix, try adding minecraft:
-        const fallback = token.startsWith("minecraft:") ? token : `minecraft:${token}`;
-        outParts.push(fallback);
-        if (fallback !== token) corrections.push({ kind: "item_fallbackprefix", from: token, to: fallback });
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "entityType") {
-      const matched = tryMatchEntityType(token);
-      if (matched) {
-        if (matched !== token) corrections.push({ kind: "entity", from: token, to: matched });
-        outParts.push(matched);
-      } else {
-        outParts.push(token);
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "effect") {
-      const matched = tryMatchEffectType(token);
-      if (matched) {
-        if (matched !== token) corrections.push({ kind: "effect", from: token, to: matched });
-        outParts.push(matched);
-      } else {
-        outParts.push(token);
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "enchantment") {
-      const matched = tryMatchEnchantment(token);
-      if (matched) {
-        if (matched !== token) corrections.push({ kind: "enchantment", from: token, to: matched });
-        outParts.push(matched);
-      } else {
-        outParts.push(token);
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "particle" || part.type === "sound" || part.type === "block") {
-      // best-effort: if value contains colon, keep; else add minecraft: prefix
-      if (!token.includes(":")) {
-        const withPref = `minecraft:${token}`;
-        outParts.push(withPref);
-        corrections.push({ kind: part.type + "_prefix", from: token, to: withPref });
-      } else {
-        outParts.push(token);
-      }
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "coords") {
-      // coords may be absolute numbers or ~ relative; accept token as-is (but can attempt to validate)
-      outParts.push(token);
-      rtIdx++;
-      continue;
-    }
-
-    if (part.type === "int" || part.type === "float") {
-      // validate or coerce
-      const n = Number(token);
-      if (isNaN(n)) {
-        // try to extract number
-        const found = (String(token).match(/-?\d+(\.\d+)?/) || [null])[0];
-        if (found !== null) {
-          corrections.push({ kind: "num_coerce", from: token, to: found });
-          outParts.push(found);
-        } else {
-          outParts.push(token);
-        }
-      } else {
-        outParts.push(String(n));
-      }
-      rtIdx++;
-      continue;
-    }
-
-    // default
-    outParts.push(token);
-    rtIdx++;
-  }
-
-  // if leftover tokens not consumed, append them (but try to fix any selectors in them)
-  if (rtIdx < restTokens.length) {
-    const leftover = restTokens.slice(rtIdx).join(" ");
-    const replacedLeftover = leftover.replace(/@([pares])(?:\[(?:[^\]]*)\])?/ig, (m) => {
-      const parsed = parseSelector(m);
-      if (!parsed) return m;
-      const f = fixSelector(parsed);
-      if (f.corrections.length) corrections.push(...f.corrections);
-      return f.fixed;
-    });
-    outParts.push(replacedLeftover);
-  }
-
-  return { fixedArgsString: outParts.join(" "), corrections };
-}
 
 /*------------------------
  Time
@@ -2250,7 +3473,7 @@ function offsetToDecimal(offsetStr) {
  Commands
 -------------------------*/
 
-function anyPlayerHasEffect() {
+function anyplayerHasEffect() {
   for (const player of world.getAllPlayers()) {
     if (player.getEffects().length > 0) {
       return true;
@@ -2300,7 +3523,7 @@ function getCompatibleEnchantmentTypes(item) {
       }
     } catch (err) {
       // still ignore: wenn canAddEnchantment scheitert, ist das Enchant unbrauchbar für dieses Item
-      // optional: world.say / console.warn für Debugging
+      // optional: world.say / print für Debugging
     }
   }
 
@@ -2670,7 +3893,7 @@ function command_menu(player, command) {
  execute Command
 -------------------------*/
 
-function execute_command(source, cmd, target) {
+function execute_command(source, cmd, target = "server") {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
 
@@ -2713,8 +3936,8 @@ function execute_command(source, cmd, target) {
     }
 
     update_save_data(save_data);
-    command_menu_result_e(player, e.message, cmd);
-    player.sendMessage("§c" + e.message);
+    command_menu_result_e(source, e.message, cmd);
+    source.sendMessage("§c" + e.message);
     return false;
   }
 }
@@ -2723,14 +3946,36 @@ function execute_command(source, cmd, target) {
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
   let actions = [];
+  let suggestion = correctCommand(command, command_list)
 
   form.title("Command Result");
 
   const errorSnippet = extractErrorSnippet(message);
 
   const highlightedCommand = highlightErrorInCommand(command, errorSnippet);
+  form.body("Command:\n§o§7" + highlightedCommand);
+  form.label("§rFailed with:\n§c" + message)
 
-  form.body("Command:\n§o§7" + highlightedCommand + "\n\n§rFailed with:\n§c" + message);
+  if (suggestion.fix_available) {
+    form.label("Did you mean:\n§a§o§7" + suggestion.command);
+  }
+
+  if (suggestion.fix_available) {
+    form.divider();
+    form.button("Use suggestion");
+    actions.push(() => {
+      execute_command(player, suggestion.command);
+    });
+  }
+
+  if (suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
+    form.button("Visual command");
+    actions.push(() => {
+      suggestion.vc_hiperlink(player);
+    });
+    form.divider();
+  }
+
 
   form.button("Try again");
   actions.push(() => {
@@ -2780,7 +4025,7 @@ function visual_command(player) {
   form.body("Select a command!");
 
   // --- Enchant ---
-  for (const p of world.getPlayers()) {
+  for (const p of world.getAllPlayers()) {
     const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
     if (!item) continue;
 
@@ -2808,8 +4053,8 @@ function visual_command(player) {
 
 
 
-  // --- Effect: action hängt von anyPlayerHasEffect() ab; markiere empfohlen wenn Effekte vorhanden sind ---
-  const effectHas = anyPlayerHasEffect();
+  // --- Effect: action hängt von anyplayerHasEffect() ab; markiere empfohlen wenn Effekte vorhanden sind ---
+  const effectHas = anyplayerHasEffect();
   addEntry("Effect", "textures/ui/absorption_effect",
     () => { if (effectHas) visual_command_effect_select(player); else visual_command_effect_add(player); },
     player.getEffects().length > 0
@@ -2988,7 +4233,7 @@ function visual_command_enchant(player) {
   form.title("Visual commands - enchant");
   form.body("Select a vailed Item!");
 
-  world.getPlayers().forEach(p => {
+  world.getAllPlayers().forEach(p => {
       const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
       if (!item) return;
 
@@ -3241,7 +4486,7 @@ function visual_command_effect_add(player) {
   form.divider()
   form.button("");
   actions.push(() => {
-    if (anyPlayerHasEffect()) {
+    if (anyplayerHasEffect()) {
       return visual_command_effect_select(player)
     }
     return visual_command(player)
@@ -3264,8 +4509,8 @@ function visual_command_effect_config(player, id) {
   const player_sd_index = save_data.findIndex(e => e.id === player.id);
   form.title(humanizeId(id) + " - config");
 
-  const allPlayers = world.getAllPlayers();
-  const playerNames = allPlayers.map(p => p.name);
+  const allplayers = world.getAllPlayers();
+  const playerNames = allplayers.map(p => p.name);
   if (playerNames.length !== 1) {
     if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
     form.dropdown('Target', playerNames, {
@@ -4163,7 +5408,7 @@ function dictionary_contact(player) {
 
   // Yes, that's right, you're not dumping the full "save_data". The player names are removed here for data protection reasons
   save_data = save_data.map(entry => {
-    if ("name" in entry) {
+    if (name in entry) {
       return { ...entry, name: "" };
     }
     return entry;
@@ -4261,7 +5506,6 @@ function debug_main(player) {
   });
 }
 
-
 function test_fix(player) {
   let form = new ModalFormData()
     .title("Command fixer test")
@@ -4272,56 +5516,8 @@ function test_fix(player) {
     }
     const input = res.formValues[0];
     print("Input: "+ input);
-    print("Output: "+ JSON.stringify(fixCommand(input)));
+    print("Output: "+ JSON.stringify(correctCommand(input, command_list)));
   });
-}
-
-function fixCommand(input) {
-  if (!input || typeof input !== "string") return { fix_available: false, command: null, reason: "no input" };
-  const trimmed = input.trim();
-  if (!trimmed) return { fix_available: false, command: null, reason: "empty input" };
-
-  // Tokenize preserving JSON/brackets/quotes
-  const tokens = splitArgsPreserveJSON(trimmed);
-  if (tokens.length === 0) return { fix_available: false, command: null, reason: "no tokens" };
-
-  // First token is command (maybe with /)
-  let first = tokens[0];
-  const hadSlash = first.startsWith("/");
-  first = normalizeCommandName(first);
-
-  // build candidate names
-  const candidates = buildCandidatesList();
-
-  // exact?
-  if (candidates.includes(first)) {
-    // proceed to fix subargs using the matching command entry
-    const matchedCmdName = first; // normalized
-    const cmdDef = command_list.find(c => c.name.toLowerCase() === matchedCmdName || (c.aliases && c.aliases.map(a=>a.toLowerCase()).includes(matchedCmdName)));
-    const restTokens = tokens.slice(1);
-    const fixResult = fixSubArgsAccordingToCmd(cmdDef, restTokens);
-    const final = "/" + (cmdDef ? cmdDef.name : matchedCmdName) + (fixResult.fixedArgsString ? " " + fixResult.fixedArgsString : (restTokens.length ? " " + restTokens.join(" ") : ""));
-    return { fix_available: true, command: final, corrections: fixResult.corrections, reason: "exact command match" };
-  }
-
-  // fuzzy match command name
-  const cmdMatch = fuzzyBest(first, candidates, 2, 0.35);
-  if (!cmdMatch.accept) {
-    return { fix_available: false, command: null, suggestion: cmdMatch.suggestions, reason: "no confident command match" };
-  }
-  const suggestedCmd = cmdMatch.best;
-  const cmdDef = command_list.find(c => c.name.toLowerCase() === suggestedCmd || (c.aliases && c.aliases.map(a=>a.toLowerCase()).includes(suggestedCmd)));
-  const rest = tokens.slice(1);
-  // attempt to fix sub-arguments now using cmdDef
-  const subFix = fixSubArgsAccordingToCmd(cmdDef, rest);
-  const rebuilt = "/" + (cmdDef ? cmdDef.name : suggestedCmd) + (subFix.fixedArgsString ? " " + subFix.fixedArgsString : (rest.length ? " " + rest.join(" ") : ""));
-  return {
-    fix_available: true,
-    command: rebuilt,
-    suggestion: suggestedCmd,
-    corrections: subFix.corrections,
-    reason: `autocorrected command name (dist=${cmdMatch.dist})`
-  };
 }
 
 function debug_sd_editor(player, onBack, path = []) {
@@ -4345,7 +5541,7 @@ function debug_sd_editor(player, onBack, path = []) {
     current.forEach((entry, idx) => {
       const label = idx === 0
         ? `Server [${idx}]`
-        : `${entry.name ?? `Player ${idx}`} [${entry.id ?? idx}]`;
+        : `${entry.name ?? `player ${idx}`} [${entry.id ?? idx}]`;
       form.button(label, "textures/ui/storageIconColor");
 
       // Push action for this entry
@@ -4505,8 +5701,8 @@ function debug_add_fake_player(player) {
   let form = new ModalFormData();
   let UniqueId = ""+generateEntityUniqueId()
 
-  form.textField("Player name", player.name);
-  form.textField("Player id", UniqueId);
+  form.textField("player name", player.name);
+  form.textField("player id", UniqueId);
   form.submitButton("Add player")
 
   form.show(player).then((response) => {
@@ -4603,8 +5799,8 @@ function settings_rights_main(player) {
       displayName += "\n§a(online)§r";
 
       // Online → check PermissionLevel
-      const onlinePlayer = playerMap.get(entry.id);
-      if (onlinePlayer.playerPermissionLevel === 2) {
+      const onlineplayer = playerMap.get(entry.id);
+      if (onlineplayer.playerPermissionLevel === 2) {
         form.button(displayName, "textures/ui/op");
       } else {
         form.button(displayName, "textures/ui/permissions_member_star");
@@ -4704,7 +5900,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
 
     if (selected_player) {
       if (selected_player.playerPermissionLevel === 2) {
-        form.label("§7This player is currently op! To change that open Minecraft's Player Permission page.§r\n");
+        form.label("§7This player is currently op! To change that open Minecraft's player Permission page.§r\n");
 
         /* Minecraft Bug: Op command doesn't via scripts
         form.button("§cMake deop");
@@ -4716,7 +5912,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
         });
         */
       } else {
-        form.label("§7This player is currently not op! To change that open Minecraft's Player Permission page.§r\n");
+        form.label("§7This player is currently not op! To change that open Minecraft's player Permission page.§r\n");
 
         /* Minecraft Bug: Op command doesn't via scripts
         form.button("§aMake op");
