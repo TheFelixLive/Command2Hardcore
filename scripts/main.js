@@ -1,19 +1,21 @@
-import { system, world, EntityTypes, EffectTypes, ItemTypes, BlockTypes, EnchantmentTypes, WeatherType} from "@minecraft/server";
+import { system, world, EntityTypes, EffectTypes, ItemTypes, BlockTypes, EnchantmentTypes, WeatherType, CustomCommandParamType, CommandPermissionLevel} from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
 
 
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B023",
+  build: "B024",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1758222187,
+  unix: 1758378624,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
       "Achievements can now be earned with this add-on (thks. to Coolboyzay7 & Littlewolf_guy)",
+      "Added auto correction for commands in the ui",
+      "Added limited support for custom commands (thks. to xAssassin)",
     ],
     // general_changes
     general_changes: [
@@ -560,7 +562,7 @@ const command_list = [
     syntaxes: [
       { type: "literal", value: "/effect" },
       { type: "entityselector", name: "target" },
-      { type: "effectType", name: "effect" },
+      { type: "effecttype", name: "effect" },
       { type: "int", name: "seconds", optional: true },
       { type: "int", name: "amplifier", optional: true },
       { type: "bool", name: "hideParticles", optional: true }
@@ -604,7 +606,6 @@ const command_list = [
       {
         type: "entityselector",
         name: "victim",
-        optional: true,
         next: [
           {
             type: "entityselector",
@@ -686,18 +687,6 @@ const command_list = [
     syntaxes: [
       { type: "literal", value: "/help" },
       { type: "string", name: "command", optional: true }
-    ]
-  },
-
-  {
-    name: "ability",
-    aliases: ["ability"],
-    description: "Set or check player abilities (Bedrock-specific)",
-    syntaxes: [
-      { type: "literal", value: "/ability" },
-      { type: "playerselector", name: "player" },
-      { type: "string", name: "ability" },
-      { type: "bool", name: "value", optional: true }
     ]
   },
 
@@ -946,19 +935,6 @@ const command_list = [
         ] // end action values
       } // end action enum
     ] // end syntaxes
-  },
-
-
-  {
-    name: "camershake",
-    aliases: ["camershake"],
-    description: "Shake the camera",
-    syntaxes: [
-      { type: "literal", value: "/camershake" },
-      { type: "playerselector", name: "target" },
-      { type: "int", name: "duration", optional: true },
-      { type: "float", name: "intensity", optional: true }
-    ]
   },
 
   {
@@ -2354,10 +2330,70 @@ function multiple_menu(player) {
   });
 }
 
+
+/*------------------------
+ CC Commands
+-------------------------*/
+
+function registerAllCommands(init) {
+  // 1) register dynamic built-in enums
+  const enumsDynamic = registerBuiltInDynamicEnums(init);
+
+  // 2) iterate through command_list
+  for (const cmd of command_list) {
+    // aliases array (fallback: use cmd.name)
+    const aliases = Array.isArray(cmd.aliases) && cmd.aliases.length ? cmd.aliases : [cmd.name];
+
+    // build parameter lists from top-level syntaxes (siehe Hinweis oben)
+    const { mandatory, optional } = buildParamsFromTopLevel(init, cmd, enumsDynamic);
+
+    // Wenn nach dem Filtern *keine* Parameter übrig sind -> Command ausblenden
+    if ((!mandatory || mandatory.length === 0) && (!optional || optional.length === 0)) {
+      continue;
+    }
+
+    // For each alias we register a separate custom command named com2hard:<alias>
+    for (const alias of aliases) {
+      const regName = `com2hard:${alias}`;
+
+      const commandDescriptor = {
+        name: regName,
+        description: cmd.description || "",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+        mandatoryParameters: mandatory,
+        optionalParameters: optional
+      };
+
+      try {
+        init.customCommandRegistry.registerCommand(commandDescriptor, (origin, ...args) => {
+          system.run(() => {
+            const player = origin.sourceEntity;
+
+            // args ist jetzt ein Array mit allen Parametern in Reihenfolge
+            const argList = args
+              .map((v, i) => `arg${i}: ${JSON.stringify(v)}`)
+              .join(", ");
+
+            console.log(`${player?.name ?? origin.sourceType} Executed /${regName} ${argList}`);
+          });
+        });
+
+      } catch (e) {
+        system.run(() => console.warn(`Konnte Befehl ${regName} nicht registrieren:`, e));
+      }
+    }
+  }
+}
+
+system.beforeEvents.startup.subscribe((init) => {
+  registerAllCommands(init);
+});
+
+
 /*------------------------
  Save Data
 -------------------------*/
-
 
 // Creates or Updates Save Data if not present
 system.run(() => {
@@ -2538,7 +2574,7 @@ world.beforeEvents.itemUse.subscribe(event => {
 
   if (event.itemStack.typeId === "minecraft:stick" && save_data[idx].gesture.stick) {
       system.run(() => {
-        if (save_data[idx].op && system_privileges !== 0) {
+        if (system_privileges !== 0) {
           event.source.playSound("random.pop2")
           system_privileges == 1 ? multiple_menu(event.source) : main_menu(event.source);
         }
@@ -2569,7 +2605,7 @@ async function gesture_jump() {
     if (isSneaking && isJumping && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.sneak && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.sneak && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -2606,7 +2642,7 @@ async function gesture_emote() {
     if (isEmoting && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.emote && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.emote && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -2643,7 +2679,7 @@ async function gesture_nod() {
     else if (state === "lookingUp" && pitch > 13) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.nod && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.nod && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -2932,6 +2968,165 @@ world.afterEvents.weatherChange.subscribe(ev => {
 });
 
 /*------------------------
+  Custom Command Helpers
+-------------------------*/
+
+function registerBuiltInDynamicEnums(init) {
+  const enums = {};
+
+  function safeGetKeys(getAllCandidate, label) {
+    try {
+      if (!getAllCandidate || typeof getAllCandidate !== "function") {
+        system.run(() => console.warn(`${label}.getAll ist nicht vorhanden oder keine Funktion.`));
+        return [];
+      }
+      const all = getAllCandidate(); // synchron aufrufen
+      // Wenn eine Hilfsfunktion getKeysFromGetAll existiert, verwende sie
+      if (typeof getKeysFromGetAll === "function") {
+        const keys = getKeysFromGetAll(all);
+        return Array.isArray(keys) ? keys : [];
+      }
+      // Fallbacks
+      if (Array.isArray(all)) return all.map(v => (typeof v === "object" ? (v.value ?? v.name ?? String(v)) : String(v)));
+      if (all && typeof all === "object") return Object.keys(all);
+      return [];
+    } catch (e) {
+      system.run(() => console.warn(`Fehler beim Erzeugen der ${label}-enum:`, e));
+      return [];
+    }
+  }
+
+  const effectValues = safeGetKeys(EffectTypes && EffectTypes.getAll, "EffectTypes");
+  if (effectValues.length) {
+    try {
+      init.customCommandRegistry.registerEnum("com2hard:effectType", effectValues);
+      enums.effectType = "com2hard:effectType";
+    } catch (e) {
+      system.run(() => console.warn("registerEnum effectType fehlgeschlagen:", e));
+    }
+  }
+
+  const enchValues = safeGetKeys(EnchantmentTypes && EnchantmentTypes.getAll, "EnchantmentTypes");
+  if (enchValues.length) {
+    try {
+      init.customCommandRegistry.registerEnum("com2hard:enchantType", enchValues);
+      enums.enchantType = "com2hard:enchantType";
+    } catch (e) {
+      system.run(() => console.warn("registerEnum enchantType fehlgeschlagen:", e));
+    }
+  }
+
+  const weatherValues = safeGetKeys(WeatherType && WeatherType.getAll, "WeatherType");
+  if (weatherValues.length) {
+    try {
+      init.customCommandRegistry.registerEnum("com2hard:weathertype", weatherValues);
+      enums.weathertype = "com2hard:weathertype";
+    } catch (e) {
+      system.run(() => console.warn("registerEnum weathertype fehlgeschlagen:", e));
+    }
+  }
+
+  return enums;
+}
+
+// --- 2) registerInlineEnum: filtert Einträge mit 'next' heraus, registriert nur echte Werte ---
+function registerInlineEnum(init, commandName, paramName, valuesArray) {
+  if (!Array.isArray(valuesArray) || valuesArray.length === 0) return null;
+
+  // Filter: entferne Objekte, die ein 'next' Feld besitzen (wie gewünscht)
+  const filtered = valuesArray.filter(v => !(v && typeof v === "object" && Object.prototype.hasOwnProperty.call(v, "next")));
+  if (filtered.length === 0) return null;
+
+  // Mappe
+  const entries = filtered.map(v => { if (v == null) return null; if (typeof v === "string") return v; if (typeof v === "object") return v.value ?? v.name ?? v.id ?? v.key ?? v.text ?? JSON.stringify(v); return String(v); }).filter(Boolean);
+
+  if (entries.length === 0) return null;
+
+  const enumId = `com2hard:${commandName}_${paramName}`;
+  try {
+    init.customCommandRegistry.registerEnum(enumId, entries);
+    return enumId;
+  } catch (e) {
+    system.run(() => console.warn(`Enum ${enumId} konnte nicht registriert werden:`, e));
+    return null;
+  }
+}
+
+// --- 3) buildParamsFromTopLevel: dynamische Enums werden ausgelassen, wenn nicht registriert ---
+function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
+  const mandatory = [];
+  const optional = [];
+
+  function mapSimpleType(typeStr) {
+    switch (typeStr) {
+      case "int": return CustomCommandParamType.Integer;
+      case "float": return CustomCommandParamType.Float;
+      case "string": return CustomCommandParamType.String; // json -> handled separately
+      case "bool": return CustomCommandParamType.Boolean;
+      case "location": return CustomCommandParamType.Location;
+      case "blocktype": return CustomCommandParamType.BlockType;
+      case "itemtype": return CustomCommandParamType.ItemType;
+      case "entityType": return CustomCommandParamType.EntityType;
+      case "entityselector": return CustomCommandParamType.EntitySelector;
+      case "playerselector": return CustomCommandParamType.PlayerSelector;
+      default:
+        return null;
+    }
+  }
+
+  for (const syn of cmd.syntaxes) {
+    if (syn.type === "literal") continue;
+
+    if (syn.type === "json") {
+      const param = { type: CustomCommandParamType.String, name: syn.name || "json", optional: !!syn.optional };
+      (param.optional ? optional : mandatory).push(param);
+      continue;
+    }
+
+    // Special: dynamische enums - nur hinzufügen, wenn enumsDynamic die registrierte Enum-ID liefert.
+    if (syn.type === "effecttype" || syn.type === "enchanttype" || syn.type === "weathertype") {
+      const enumKey = enumsDynamic && enumsDynamic[syn.type];
+      if (enumKey) {
+        const param = { type: CustomCommandParamType.Enum, name: syn.name, enumName: enumKey, optional: !!syn.optional };
+        (param.optional ? optional : mandatory).push(param);
+        continue;
+      } else {
+        // **IGNORIERE** den Parameter wenn die dynamische enum nicht verfügbar ist (wie 'next' ungenutzt).
+        system.run(() => console.warn(`Dynamische enum '${syn.type}' nicht vorhanden -> Parameter '${syn.name}' wird zu Unbekannt.`));
+      }
+    }
+
+    // inline enums
+    if (syn.type === "enum" && syn.value) {
+      const enumId = registerInlineEnum(init, cmd.name, syn.name || "enum", syn.value);
+      if (!enumId) {
+        // enum wurde herausgefiltert -> Parameter ignorieren
+        system.run(() => console.log(`Inline-enum für ${cmd.name}.${syn.name} wurde herausgefiltert -> kein Parameter.`));
+        continue;
+      }
+      const param = { type: CustomCommandParamType.Enum, name: enumId, optional: !!syn.optional };
+      (param.optional ? optional : mandatory).push(param);
+      continue;
+    }
+
+    const mapped = mapSimpleType(syn.type);
+    if (mapped != null) {
+      const param = { type: mapped, name: syn.name, optional: !!syn.optional };
+      (param.optional ? optional : mandatory).push(param);
+      continue;
+    }
+
+    // Unbekannter Typ: fallback zu String
+    const param = { type: CustomCommandParamType.String, name: syn.name || syn.type, optional: !!syn.optional };
+    (param.optional ? optional : mandatory).push(param);
+    system.run(() => console.warn(`Unbekannter param type '${syn.type}' bei command '${cmd.name}' -> als String registriert.`));
+  }
+
+  return { mandatory, optional };
+}
+
+
+/*------------------------
  Command fixing helpers
 -------------------------*/
 
@@ -3009,18 +3204,17 @@ function isValidJson(input) {
   return stack.length === 0;
 }
 
+function getKeysFromGetAll(getAllResult) {
+  if (Array.isArray(getAllResult)) {
+    return getAllResult.map(e => (e && e.id) ? e.id : e);
+  }
+  return Object.keys(getAllResult || {});
+}
+
 function fixArgument(typeDef, input) {
   // typeDef kann entweder ein String ("int","itemtype",...) oder ein Objekt { name: "enum", value: [...] } sein
   const typeName = (typeof typeDef === "string") ? typeDef.toLowerCase() : (typeDef.name || "").toLowerCase();
   print(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
-
-  // Hilfsfunktion: getKeysFromGetAll() nimmt entweder ein Array von {id:...} oder ein Objekt und liefert eine String-Liste
-  function getKeysFromGetAll(getAllResult) {
-    if (Array.isArray(getAllResult)) {
-      return getAllResult.map(e => (e && e.id) ? e.id : e);
-    }
-    return Object.keys(getAllResult || {});
-  }
 
   switch (typeName) {
     case "literal": return input;
@@ -3946,7 +4140,7 @@ function execute_command(source, cmd, target = "server") {
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
   let actions = [];
-  let suggestion = correctCommand(command, command_list)
+  let suggestion = undefined // correctCommand(command, command_list) // Is disabled because it is not good enough yet
 
   form.title("Command Result");
 
@@ -5408,7 +5602,7 @@ function dictionary_contact(player) {
 
   // Yes, that's right, you're not dumping the full "save_data". The player names are removed here for data protection reasons
   save_data = save_data.map(entry => {
-    if (name in entry) {
+    if ("name" in entry) {
       return { ...entry, name: "" };
     }
     return entry;
@@ -5425,7 +5619,7 @@ function dictionary_contact(player) {
     form.label(`${entry.name}\n${entry.link}`);
   }
 
-  if (player.playerPermissionLevel === 2) {
+  if (save_data[player_sd_index].op) {
     form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
     actions.push(() => {
       player.sendMessage("§l§7[§f"+ ("System") + "§7]§r SD Dump:\n"+JSON.stringify(save_data))
