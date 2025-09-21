@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B024",
+  build: "B025",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1758378624,
+  unix: 1758481264,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -23,6 +23,7 @@ const version_info = {
     // bug_fixes
     bug_fixes: [
       "Fixed a bug where commmand didn't execute properly in multiplayer",
+      "Fixed a bug where the visual effect command didn't work properly while clearing an effect in multiplayer",
     ]
   }
 }
@@ -659,6 +660,7 @@ const command_list = [
       { type: "literal", value: "/setblock" },
       { type: "location", name: "pos" },
       { type: "blocktype", name: "block" },
+      { type: "string", name: "data", optional: true },
       {
         type: "enum",
         name: "mode",
@@ -683,6 +685,7 @@ const command_list = [
   {
     name: "help",
     aliases: ["help", "?"],
+    cc_hidden: true,
     description: "Show help for commands or a specific command",
     syntaxes: [
       { type: "literal", value: "/help" },
@@ -1218,7 +1221,7 @@ const command_list = [
       {
         type: "enum",
         name: "mode",
-        value: [{ value: "survival" }, { value: "creative" }, { value: "adventure" }, { value: "spectator" }]
+        value: [{ value: "survival" }, { value: "creative" }, { value: "adventure" }, { value: "spectator" }, { value: "s" }, { value: "c" }]
       },
       { type: "playerselector", name: "target", optional: true }
     ]
@@ -1227,6 +1230,7 @@ const command_list = [
   {
     name: "gamerule",
     aliases: ["gamerule"],
+    cc_hidden: true,
     description: "Set or query a gamerule",
     syntaxes: [
       { type: "literal", value: "/gamerule" },
@@ -1318,6 +1322,7 @@ const command_list = [
   {
     name: "kick",
     aliases: ["kick"],
+    cc_hidden: true,
     description: "Kick a player from the server",
     syntaxes: [
       { type: "literal", value: "/kick" },
@@ -1915,6 +1920,7 @@ const command_list = [
   {
     name: "tellraw",
     aliases: ["tellraw"],
+    cc_hidden: true,
     description: "Send JSON-formatted chat messages",
     syntaxes: [
       { type: "literal", value: "/tellraw" },
@@ -2163,6 +2169,260 @@ const command_list = [
     aliases: ["toggledownfall"],
     description: "Toggle rain/snow",
     syntaxes: [{ type: "literal", value: "/toggledownfall" }]
+  },
+
+  {
+    name: "camerashake",
+    aliases: ["camerashake"],
+    description: "Shake the camera for one or more players (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/camerashake" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "start",
+            next: [
+              { type: "playerselector", name: "targets", optional: true },
+              { type: "float", name: "amplitude" },
+              { type: "int", name: "durationTicks" },
+              { type: "string", name: "source", optional: true }
+            ]
+          },
+          {
+            value: "stop",
+            next: [
+              { type: "playerselector", name: "targets", optional: true }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "list",
+    aliases: ["list"],
+    cc_hidden: true,
+    description: "List players on the server or query server info",
+    syntaxes: [
+      { type: "literal", value: "/list" }
+    ]
+  },
+
+  {
+    name: "loot",
+    aliases: ["loot"],
+    description: "Give or spawn loot from a loot table",
+    syntaxes: [
+      { type: "literal", value: "/loot" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "give",
+            next: [
+              { type: "string", name: "lootTable" },
+              { type: "playerselector", name: "target", optional: true },
+              { type: "int", name: "count", optional: true }
+            ]
+          },
+          {
+            value: "spawn",
+            next: [
+              { type: "string", name: "lootTable" },
+              { type: "location", name: "pos", optional: true },
+              { type: "int", name: "count", optional: true }
+            ]
+          },
+          {
+            value: "insert",
+            next: [
+              { type: "string", name: "lootTable" },
+              { type: "location", name: "containerPos" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "place",
+    aliases: ["place"],
+    description: "Place an item or block at a position (utility command)",
+    syntaxes: [
+      { type: "literal", value: "/place" },
+      {
+        type: "enum",
+        name: "what",
+        value: [
+          {
+            value: "block",
+            next: [
+              { type: "blocktype", name: "block" },
+              { type: "location", name: "pos", optional: true },
+              {
+                type: "enum",
+                name: "mode",
+                optional: true,
+                value: [
+                  { value: "replace" },
+                  { value: "keep" },
+                  { value: "destroy" }
+                ]
+              }
+            ]
+          },
+          {
+            value: "item",
+            next: [
+              { type: "itemtype", name: "item" },
+              { type: "location", name: "pos", optional: true }
+            ]
+          },
+          {
+            value: "structure",
+            next: [
+              { type: "string", name: "structureName" },
+              { type: "location", name: "destination", optional: true },
+              {
+                type: "enum",
+                name: "rotation",
+                optional: true,
+                value: [ { value: "0" }, { value: "90" }, { value: "180" }, { value: "270" } ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "say",
+    aliases: ["say"],
+    cc_hidden: true,
+    description: "Broadcast a chat message to all players",
+    syntaxes: [
+      { type: "literal", value: "/say" },
+      { type: "string", name: "message" }
+    ]
+  },
+
+  {
+    name: "script",
+    aliases: ["script"],
+    description: "Debugging, profiling and diagnostics controls for the scripting system (Bedrock)",
+    syntaxes: [
+      { type: "literal", value: "/script" },
+
+      {
+        type: "enum",
+        name: "category",
+        value: [
+          {
+            value: "debugger",
+            next: [
+              {
+                type: "enum",
+                name: "debuggerAction",
+                value: [
+                  { value: "listen", next: [{ type: "int", name: "port" }] },
+                  { value: "connect", next: [{ type: "string", name: "host", optional: true }, { type: "int", name: "port", optional: true }] },
+                  { value: "close" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "profiler",
+            next: [
+              {
+                type: "enum",
+                name: "profilerAction",
+                value: [
+                  { value: "start" },
+                  { value: "stop" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "diagnostics",
+            next: [
+              {
+                type: "enum",
+                name: "diagnosticsAction",
+                value: [
+                  { value: "startcapture" },
+                  { value: "stopcapture" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: "scriptevent",
+    aliases: ["scriptevent"],
+    description: "Trigger a script event (Bedrock scripting)",
+    syntaxes: [
+      { type: "literal", value: "/scriptevent" },
+      { type: "string", name: "eventName" },
+      { type: "entityselector", name: "target", optional: true },
+      { type: "json", name: "eventData", optional: true }
+    ]
+  },
+
+  {
+    name: "tell",
+    cc_hidden: true,
+    aliases: ["tell", "msg", "w"],
+    description: "Send a private message to another player (whisper)",
+    syntaxes: [
+      { type: "literal", value: "/tell" },
+      { type: "playerselector", name: "target" },
+      { type: "string", name: "message" }
+    ]
+  },
+
+  {
+    name: "transfer",
+    aliases: ["transfer"],
+    description: "Transfer a player to another server (proxy/bedrock linking)",
+    syntaxes: [
+      { type: "literal", value: "/transfer" },
+      { type: "playerselector", name: "player" },
+      { type: "string", name: "address" },
+      { type: "int", name: "port", optional: true },
+      { type: "string", name: "password", optional: true }
+    ]
+  },
+
+  {
+    name: "wsserver",
+    aliases: ["wsserver"],
+    description: "Start/stop/query the WebSocket server (dev/admin)",
+    syntaxes: [
+      { type: "literal", value: "/wsserver" },
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          { value: "start", next: [{ type: "int", name: "port", optional: true }] },
+          { value: "stop" },
+          { value: "status" }
+        ]
+      }
+    ]
   }
 ];
 
@@ -2341,6 +2601,11 @@ function registerAllCommands(init) {
 
   // 2) iterate through command_list
   for (const cmd of command_list) {
+    if (cmd.cc_hidden) {
+      continue;
+    }
+
+
     // aliases array (fallback: use cmd.name)
     const aliases = Array.isArray(cmd.aliases) && cmd.aliases.length ? cmd.aliases : [cmd.name];
 
@@ -2370,12 +2635,53 @@ function registerAllCommands(init) {
           system.run(() => {
             const player = origin.sourceEntity;
 
-            // args ist jetzt ein Array mit allen Parametern in Reihenfolge
-            const argList = args
-              .map((v, i) => `arg${i}: ${JSON.stringify(v)}`)
-              .join(", ");
+            function formatArg(v) {
+              if (v === null) return "null";
+              if (v === undefined) return "undefined";
 
-            console.log(`${player?.name ?? origin.sourceType} Executed /${regName} ${argList}`);
+              const t = typeof v;
+              if (t === "string" || t === "number" || t === "boolean") return String(v);
+
+              if (Array.isArray(v)) return v.map(formatArg).join(" ");
+
+              if (t === "object") {
+                const x = v.x ?? v.X;
+                const y = v.y ?? v.Y;
+                const z = v.z ?? v.Z;
+                if (x !== undefined || y !== undefined || z !== undefined) {
+                  return [x, y, z].filter(v => v !== undefined).map(String).join(" ");
+                }
+
+                if (v.hasOwnProperty("id")) {
+                  if (typeof v.id === "number") {
+                    // Spieler prüfen
+                    const player = world.getAllPlayers().find(entity => entity.id === v.id);
+                    if (player) return String(player.name);
+
+                    // Entitys
+                    const entity = world.getEntity(v.id);
+                    if (entity) {
+                      return `@e[x=${entity.location.x},y=${entity.location.y},z=${entity.location.z}, r=20, type=!player, c=1]`;
+                    }
+                  }
+
+                  // Fallback falls nichts gefunden wird
+                  return String(v.id);
+                }
+              }
+
+              return String(v);
+            }
+
+            if (!player || player.typeId !== "minecraft:player") return {
+                status: CustomCommandStatus.Failure,
+                message: "Only players can use this command"
+            };
+
+            // kompletten Command bauen
+            const argString = args.map(formatArg).join(" ").trim();
+            const fullCommand = `/${alias}${argString ? " " + argString : ""}`;
+            execute_command(player, fullCommand, player);
           });
         });
 
@@ -2479,6 +2785,7 @@ function create_player_save_data(playerId, playerName) {
       last_unix: Math.floor(Date.now() / 1000),
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
+      quick_run: false,
   });
 
   let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
@@ -3077,6 +3384,13 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
   for (const syn of cmd.syntaxes) {
     if (syn.type === "literal") continue;
 
+    // Wenn das Syntax-Element ein 'next' hat, handelt es sich um verzweigte/nested Syntax,
+    // die sich nicht flach in mandatory/optional abbilden lässt -> IGNORIEREN.
+    if (syn && Object.prototype.hasOwnProperty.call(syn, "next") && Array.isArray(syn.next) && syn.next.length > 0) {
+      system.run(() => console.warn(`Syntax-Element '${syn.name || syn.type}' in command '${cmd.name}' hat 'next' -> wird ignoriert (nicht abbildbar).`));
+      continue;
+    }
+
     if (syn.type === "json") {
       const param = { type: CustomCommandParamType.String, name: syn.name || "json", optional: !!syn.optional };
       (param.optional ? optional : mandatory).push(param);
@@ -3130,7 +3444,6 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
  Command fixing helpers
 -------------------------*/
 
-// Levenshtein-Distanz
 function levenshtein(a, b) {
   const dp = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(0));
   for (let i = 0; i <= a.length; i++) dp[i][0] = i;
@@ -3148,7 +3461,6 @@ function levenshtein(a, b) {
   return dp[a.length][b.length];
 }
 
-// Find closest match
 function findClosest(input, list, typeName = "") {
   if (!list || list.length === 0) {
     print(`[DEBUG] Liste für Typ "${typeName}" ist leer!`);
@@ -3167,11 +3479,10 @@ function findClosest(input, list, typeName = "") {
   return closest;
 }
 
-// Spezialfall: entityselector & playerselector
 function fixSelector(input) {
   const validSelectors = ["@a", "@r", "@e", "@p", "@s"];
   if (validSelectors.includes(input)) {
-    print(`[DEBUG] Selector "${input}" is in ${JSON.parse(validSelectors)}.`);
+    print(`[DEBUG] Selector "${input}" is in ${JSON.stringify(validSelectors)}.`);
     return input;
   }
   const playerNames = Array.from(world.getAllPlayers()).map(p => p.name);
@@ -3180,14 +3491,12 @@ function fixSelector(input) {
   return closestPlayer || input;
 }
 
-// Prüft Location auf gültiges Format
 function isValidLocation(input) {
   const parts = input.split(" ");
   if (parts.length !== 3) return false;
   return parts.every(p => /^~?$/.test(p) || !isNaN(parseFloat(p)));
 }
 
-// Prüft JSON auf matching braces / quotes
 function isValidJson(input) {
   const stack = [];
   const pairs = { "{": "}", "[": "]", "(": ")", '"': '"' };
@@ -3212,67 +3521,73 @@ function getKeysFromGetAll(getAllResult) {
 }
 
 function fixArgument(typeDef, input) {
-  // typeDef kann entweder ein String ("int","itemtype",...) oder ein Objekt { name: "enum", value: [...] } sein
-  const typeName = (typeof typeDef === "string") ? typeDef.toLowerCase() : (typeDef.name || "").toLowerCase();
-  print(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
+  const typeName = (typeof typeDef === "string")
+    ? typeDef.toLowerCase()
+    : ((typeDef && (typeDef.name || typeDef.type)) || "").toLowerCase();
+
+  console.log(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
+
+  const extractStrings = list => {
+    if (!list) return [];
+    if (Array.isArray(list)) {
+      return list.map(e => {
+        if (typeof e === "string") return e;
+        if (e?.getName) try { return e.getName(); } catch(_) { return null; }
+        return e?.id || e?.name || e?.value?.value || e?.value || null;
+      }).filter(Boolean);
+    }
+    return Object.keys(list || {});
+  };
+
+  const safeNumber = (v, fallback) => Number.isFinite(+v) ? v : fallback;
+  const stripMinecraft = s => (typeof s === "string") ? s.replace(/^minecraft:/i, "") : s;
 
   switch (typeName) {
-    case "literal": return input;
-    case "string":
-      return /\s/.test(input) ? `"${input}"` : input;
-    case "int": return isNaN(parseInt(input, 10)) ? "0" : input;
-    case "float": return isNaN(parseFloat(input)) ? "0.0" : input;
-    case "bool": return (typeof input === "string" && ["true","false"].includes(input.toLowerCase())) ? input.toLowerCase() : "false";
-    case "location": return isValidLocation(input) ? input : "~ ~ ~";
-    case "blocktype": {
-      const keys = getKeysFromGetAll(BlockTypes.getAll());
-      return findClosest(input, keys, "blocktype");
-    }
-    case "itemtype": {
-      // Hilfsfunktion: ids aus Array von Objekten ziehen
-      function extractIds(list) {
-        return Array.isArray(list) ? list.map(e => (e && e.id) ? e.id : e) : Object.keys(list || {});
+    case "literal": {
+      const exp = typeDef?.value || typeDef?.values || typeDef?.expected;
+      let raw = String(input), hadSlash = raw.startsWith("/");
+      if (hadSlash) raw = raw.slice(1);
+      if (Array.isArray(exp) && exp.length) {
+        const corrected = findClosest(raw, exp.map(v => (v?.value ?? v)), "literal");
+        return hadSlash ? `/${corrected}` : corrected;
       }
-
-      const itemIds = extractIds(ItemTypes.getAll());
-      const blockIds = extractIds(BlockTypes.getAll());
-
-      // Kombinieren & Duplikate vermeiden
-      const allIds = Array.from(new Set([...itemIds, ...blockIds]));
-
-      return findClosest(input, allIds, "itemtype");
+      return input;
     }
+    case "string":   return /\s/.test(input) ? `"${input}"` : input;
+    case "int":      return safeNumber(input, "0");
+    case "float":    return safeNumber(input, "0.0");
+    case "bool":     return ["true","false"].includes(input?.toLowerCase()) ? input.toLowerCase() : "false";
+    case "location": return isValidLocation(input) ? input : "~ ~ ~";
 
-    case "entitytype": {
-      const keys = getKeysFromGetAll(EntityTypes.getAll());
-      return findClosest(input, keys, "entityType");
+    case "blocktype":   return findClosest(input, extractStrings(BlockTypes.getAll()), "blocktype");
+    case "itemtype": {
+      const all = [...extractStrings(ItemTypes.getAll()), ...extractStrings(BlockTypes.getAll())];
+      return findClosest(input, [...new Set(all)], "itemtype");
     }
+    case "entitytype":  return findClosest(input, extractStrings(EntityTypes.getAll()), "entitytype");
+
     case "effecttype": {
-      const keys = getKeysFromGetAll(EffectTypes.getAll());
-      return findClosest(input, keys, "effectType");
+      // Kandidaten und Input ohne "minecraft:" vergleichen => Ergebnis ohne Prefix zurückgeben
+      const keys = extractStrings(EffectTypes.getAll()).map(k => stripMinecraft(k));
+      const inp = stripMinecraft(String(input));
+      return findClosest(inp, keys, "effecttype");
     }
-    case "enchanttype": {
-      const keys = getKeysFromGetAll(EnchantmentTypes.getAll());
-      return findClosest(input, keys, "enchanttype");
-    }
-    case "weathertype": {
-      const keys = getKeysFromGetAll(WeatherType.getAll());
-      return findClosest(input, keys, "weathertype");
-    }
-    case "playerselector": return fixSelector(input);
+
+    case "enchanttype": return findClosest(input, extractStrings(EnchantmentTypes.getAll()), "enchanttype");
+    case "weathertype": return findClosest(input, extractStrings(WeatherType.getAll()), "weathertype");
+
+    case "playerselector":
     case "entityselector": return fixSelector(input);
+
     case "enum": {
-      // typeDef muss hier ein Objekt mit .value (Array) sein
-      if (!typeDef || !Array.isArray(typeDef.value)) return input;
-      const enumVals = typeDef.value.map(v => (typeof v === "object" && v.value) ? v.value : v);
-      return findClosest(input, enumVals, "enum");
+      const vals = (typeDef?.value || []).map(v => v?.value ?? v);
+      return findClosest(input, vals, "enum");
     }
     case "json": return isValidJson(input) ? input : "{}";
-    default: return input;
+    default:     return input;
   }
 }
 
-// Rekursive Funktion für verschachtelte next-Parameter
 function fixSyntax(parts, syntaxList, index = 0) {
   const fixedParts = [];
   let fixAvailable = false;
@@ -3304,7 +3619,7 @@ function fixSyntax(parts, syntaxList, index = 0) {
   return { fixedParts, fixAvailable, index };
 }
 
-function correctCommand(inputCommand, commandList) {
+function correctCommand(inputCommand) {
   print(`[DEBUG] Eingabe-Command: "${inputCommand}"`);
 
   const trimmed = inputCommand.trim();
@@ -3317,9 +3632,9 @@ function correctCommand(inputCommand, commandList) {
   const cmdLiteral = parts[0]; // jetzt ohne "/"
 
   // Command-Namen / Alias via Levenshtein
-  const commandNames = commandList.map(c => c.name).concat(commandList.flatMap(c => c.aliases || []));
+  const commandNames = command_list.map(c => c.name).concat(command_list.flatMap(c => c.aliases || []));
   const closestCommandName = findClosest(cmdLiteral, commandNames, "command");
-  const command = commandList.find(c => c.name === closestCommandName || (c.aliases || []).includes(closestCommandName));
+  const command = command_list.find(c => c.name === closestCommandName || (c.aliases || []).includes(closestCommandName));
 
   if (!command) return { fix_available: false, command: inputCommand };
 
@@ -3664,7 +3979,7 @@ function offsetToDecimal(offsetStr) {
 }
 
 /*------------------------
- Commands
+ Visual Command Helpers
 -------------------------*/
 
 function anyplayerHasEffect() {
@@ -3725,8 +4040,6 @@ function getCompatibleEnchantmentTypes(item) {
 }
 
 
-
-
 /*------------------------
  Menus
 -------------------------*/
@@ -3746,14 +4059,14 @@ function main_menu(player) {
     form.button("Search", "textures/ui/magnifyingGlass")
     actions.push(() => search_menu(player));
     form.divider();
+
+    form.label("Functions");
+    form.label("§7Comming soon")
+    form.divider();
   }
 
-  form.label("Functions");
-  form.label("§7Comming soon")
-  form.divider();
-
   // Button: Commands & History
-  if ((world.isHardcore || version_info.release_type == 0) && player.playerPermissionLevel === 2) {
+  if ((world.isHardcore || version_info.release_type == 0)) {
     if (save_data[player_sd_index].command_history.length !== 0) {
       form.label("Most recently used commands")
     }
@@ -3771,7 +4084,7 @@ function main_menu(player) {
       form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
       actions.push(() => {
         if (save_data[player_sd_index].quick_run) {
-          execute_command(player, c.command, false)
+          execute_command(player, c.command)
         } else {
           command_menu(player, c.command);
         }
@@ -3990,14 +4303,14 @@ function command_history_menu(player) {
     form.button(`${cmdName}\n${statusText} | ${relativeTime} ago`);
     actions.push(() => {
       if (saveData[playerIndex].quick_run) {
-        execute_command(player, entry.command, false);
+        execute_command(player, entry.command, player);
       } else {
         command_menu(player, entry.command);
       }
     });
   });
 
-
+  form.divider();
   form.button("");
   actions.push(() => main_menu(player));
 
@@ -4038,18 +4351,34 @@ function command_menu(player, command) {
       targetIdentity = world.getAllPlayers().find(p => p.name === targetName);
     }
 
-    let matchedBlock = null;
-    for (const block of block_command_list) {
-      if (cmd.toLowerCase().includes(block.command_prefix.toLowerCase())) {
-        if (!matchedBlock || block.command_prefix.length > matchedBlock.command_prefix.length) {
-          matchedBlock = block;
-        }
+    execute_command(player, cmd, targetIdentity);
+  });
+}
+
+
+/*------------------------
+ execute Command
+-------------------------*/
+
+async function execute_command(source, cmd, target = "server") {
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
+  let can_run = true;
+
+  let matchedBlock = null;
+  for (const block of block_command_list) {
+    if (cmd.toLowerCase().includes(block.command_prefix.toLowerCase())) {
+      if (!matchedBlock || block.command_prefix.length > matchedBlock.command_prefix.length) {
+        matchedBlock = block;
       }
     }
+  }
 
-    if (matchedBlock) {
+  if (matchedBlock && matchedBlock.rating > 0 && world.isHardcore) {
+    can_run = await new Promise(resolve => {
       let form = new MessageFormData();
       let actions = [];
+
       form.title("Warning");
       form.body(
         matchedBlock.rating === 1
@@ -4061,35 +4390,20 @@ function command_menu(player, command) {
 
       if (matchedBlock.rating > 0) {
         form.button1(matchedBlock.rating === 2 ? "No risk no fun!" : "Try it!");
-        actions.push(() => {
-          return execute_command(player, cmd, targetIdentity);
-        });
+        actions.push(() => resolve(true));  // Spieler bestätigt
       }
 
       form.button2(""); // Cancel
-      actions.push(() => {
-        return command_menu(player, cmd);
-      });
+      actions.push(() => resolve(false)); // Spieler bricht ab
 
-      form.show(player).then((response_2) => {
+      form.show(source).then((response_2) => {
         if (response_2.selection === undefined) return -1;
-        if (actions[response_2.selection]) actions[response_2.selection]();
+        else if (actions[response_2.selection]) actions[response_2.selection]();
       });
-    } else {
-      execute_command(player, cmd, targetIdentity);
-    }
-  });
-}
+    });
 
-
-
-/*------------------------
- execute Command
--------------------------*/
-
-function execute_command(source, cmd, target = "server") {
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
+    if (!can_run) return command_menu(source, cmd); // Abbrechen, falls Spieler nein sagt
+  }
 
   try {
     let result = target === "server"
@@ -4136,11 +4450,10 @@ function execute_command(source, cmd, target = "server") {
   }
 }
 
-
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
   let actions = [];
-  let suggestion = undefined // correctCommand(command, command_list) // Is disabled because it is not good enough yet
+  let suggestion = correctCommand(command) // Is disabled because it is not good enough yet
 
   form.title("Command Result");
 
@@ -4150,19 +4463,19 @@ function command_menu_result_e(player, message, command) {
   form.body("Command:\n§o§7" + highlightedCommand);
   form.label("§rFailed with:\n§c" + message)
 
-  if (suggestion.fix_available) {
+  if (suggestion && suggestion.fix_available) {
     form.label("Did you mean:\n§a§o§7" + suggestion.command);
   }
 
-  if (suggestion.fix_available) {
+  if (suggestion && suggestion.fix_available) {
     form.divider();
     form.button("Use suggestion");
     actions.push(() => {
-      execute_command(player, suggestion.command);
+      execute_command(player, suggestion.command, player);
     });
   }
 
-  if (suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
+  if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
     form.button("Visual command");
     actions.push(() => {
       suggestion.vc_hiperlink(player);
@@ -4407,7 +4720,7 @@ function visual_command_gamerule(player) {
       for (const rule of changedRules) {
         const cmd = `gamerule ${rule.key} ${rule.value}`;
         try {
-          execute_command(player, cmd, false)
+          execute_command(player, cmd, player)
         } catch (e) {
           player.sendMessage(`§cFailed to set ${rule.key}: ${e.message ?? e}`);
         }
@@ -4487,7 +4800,7 @@ function visual_command_enchant_type(viewing_player, selected_player, item) {
         const command = `/enchant "${selected_player.name}" ${e.id} ` + (e.maxLevel > 1 ? e.maxLevel : "");
 
         if (save_data[player_sd_index].quick_run) {
-          (execute_command(viewing_player, command, false) && getCompatibleEnchantmentTypes(item).length > 0)? visual_command_enchant_type(viewing_player, selected_player, selected_player.getComponent("minecraft:inventory")?.container?.getItem(selected_player.selectedSlotIndex)) : undefined
+          (execute_command(viewing_player, command, viewing_player) && getCompatibleEnchantmentTypes(item).length > 0)? visual_command_enchant_type(viewing_player, selected_player, selected_player.getComponent("minecraft:inventory")?.container?.getItem(selected_player.selectedSlotIndex)) : undefined
 
         } else {
           command_menu(viewing_player, command);
@@ -4557,13 +4870,14 @@ function visual_command_effect_clear_player(player) {
     return visual_command_effect_clear_config(player, world.getAllPlayers()[0]);
   }
 
-  for (const player of world.getAllPlayers()) {
+  for (const selected_player of world.getAllPlayers()) {
     for (const effectType of EffectTypes.getAll()) {
       if (player.getEffect(effectType)) {
-        form.button(player.name, "textures/ui/lan_icon");
+        form.button(selected_player.name, "textures/ui/lan_icon");
         actions.push(() => {
-          return visual_command_effect_clear_config(player, )
+          return visual_command_effect_clear_config(player, selected_player)
         });
+        break;
       }
     }
   }
@@ -4598,7 +4912,7 @@ function visual_command_effect_clear_config(player, target) {
     const command = `/effect "${target.name}" clear`;
 
     return save_data[player_sd_index].quick_run
-      ? execute_command(player, command, false)
+      ? execute_command(player, command, player)
       : command_menu(player, command);
   }
 
@@ -4608,7 +4922,7 @@ function visual_command_effect_clear_config(player, target) {
       const command = `/effect "${target.name}" clear`;
 
       save_data[player_sd_index].quick_run
-        ? execute_command(player, command, false)
+        ? execute_command(player, command, player)
         : command_menu(player, command);
     });
     form.divider();
@@ -4636,7 +4950,7 @@ function visual_command_effect_clear_config(player, target) {
         const command = `/effect "${target.name}" clear ${id}`;
 
         save_data[player_sd_index].quick_run
-          ? execute_command(player, command, false)
+          ? execute_command(player, command, player)
           : command_menu(player, command);
       });
   });
@@ -4736,7 +5050,7 @@ function visual_command_effect_config(player, id) {
     const command = `/effect "${targetName}" ${id} ${durationValue} ${effectLevel} ${hideFlag}`;
 
     save_data[player_sd_index].quick_run
-      ? execute_command(player, command, false)
+      ? execute_command(player, command, player)
       : command_menu(player, command);
     });
 
@@ -4766,8 +5080,8 @@ function all_ItemTypes(player) {
       form.button(id);
 
       actions.push(() => save_data[player_sd_index].quick_run
-        ? execute_command(player, "give \""+player.name+"\" " + id, false)
-        : command_menu(player, "give \""+player.name+"\" " + id, false)
+        ? execute_command(player, "give \""+player.name+"\" " + id, player)
+        : command_menu(player, "give \""+player.name+"\" " + id)
       );
     }
   });
@@ -4819,7 +5133,7 @@ function all_EntityTypes(player) {
       form.button({ rawtext: [{ translate: "entity." + id + ".name" }]}, icon);
 
       actions.push(() => save_data[player_sd_index].quick_run
-        ? execute_command(player, "summon " + id, false)
+        ? execute_command(player, "summon " + id, player)
         : command_menu(player, "summon " + id)
       );
     }
@@ -4865,7 +5179,7 @@ function visual_command_time(player) {
   ].forEach(opt => {
     form.button(opt.label, opt.icon);
     actions.push(() => saveData[idx].quick_run
-      ? execute_command(player, opt.cmd, false)
+      ? execute_command(player, opt.cmd, player)
       : command_menu(player, opt.cmd)
     );
   });
@@ -4883,7 +5197,7 @@ function visual_command_time(player) {
 }
 
 /*------------------------
- visual_command: wheather
+ visual_command: Weather
 -------------------------*/
 
 function visual_command_weather(player) {
@@ -4902,7 +5216,7 @@ function visual_command_weather(player) {
   ].forEach(opt => {
     form.button(opt.label, opt.icon);
     actions.push(() => saveData[idx].quick_run
-      ? execute_command(player, opt.cmd, false)
+      ? execute_command(player, opt.cmd, player)
       : command_menu(player, opt.cmd)
     );
   });
@@ -5710,7 +6024,7 @@ function test_fix(player) {
     }
     const input = res.formValues[0];
     print("Input: "+ input);
-    print("Output: "+ JSON.stringify(correctCommand(input, command_list)));
+    print("Output: "+ JSON.stringify(correctCommand(input)));
   });
 }
 
@@ -5951,19 +6265,18 @@ function settings_rights_main(player) {
   form.body("Select a player!");
 
   const players = world.getAllPlayers();
-  const playerMap = new Map(players.map(p => [p.id, p])); // Map für schnelle Abfragen
+  const playerMap = new Map(players.map(p => [p.id, p])); // Schnelle Lookup-Map
 
-  let newList = save_data.slice(1);
+  let newList = save_data.slice(1); // Eintrag 0 ignorieren
+
+  const now = Math.floor(Date.now() / 1000);
 
   newList.sort((a, b) => {
-    const now = Math.floor(Date.now() / 1000);
-
     const aOnline = playerMap.has(a.id);
     const bOnline = playerMap.has(b.id);
 
-    // Nur wenn online -> PermissionLevel checken
-    const aOp = aOnline ? playerMap.get(a.id).playerPermissionLevel === 2 : false;
-    const bOp = bOnline ? playerMap.get(b.id).playerPermissionLevel === 2 : false;
+    const aOp = aOnline ? playerMap.get(a.id)?.playerPermissionLevel === 2 : false;
+    const bOp = bOnline ? playerMap.get(b.id)?.playerPermissionLevel === 2 : false;
 
     const aLastSeen = now - a.last_unix;
     const bLastSeen = now - b.last_unix;
@@ -5971,18 +6284,19 @@ function settings_rights_main(player) {
     const aName = a.name.toLowerCase();
     const bName = b.name.toLowerCase();
 
+    // Online-Status priorisieren
     if (aOnline && !bOnline) return -1;
     if (!aOnline && bOnline) return 1;
 
+    // Beide online
     if (aOnline && bOnline) {
       if (aOp && !bOp) return -1;
       if (!aOp && bOp) return 1;
-
       return aName.localeCompare(bName);
     }
 
-    // Offline: nur nach last_unix
-    return aLastSeen - bLastSeen;
+    // Beide offline → zuletzt online zuerst
+    return bLastSeen - aLastSeen;
   });
 
   newList.forEach(entry => {
@@ -5991,29 +6305,24 @@ function settings_rights_main(player) {
 
     if (isOnline) {
       displayName += "\n§a(online)§r";
-
-      // Online → check PermissionLevel
       const onlineplayer = playerMap.get(entry.id);
-      if (onlineplayer.playerPermissionLevel === 2) {
+      if (onlineplayer?.playerPermissionLevel === 2) {
         form.button(displayName, "textures/ui/op");
       } else {
         form.button(displayName, "textures/ui/permissions_member_star");
       }
     } else {
-      displayName += "\n§o(last seen " + getRelativeTime(Math.floor(Date.now() / 1000) - entry.last_unix) + " ago)§r";
-
-      // Offline → nur lan Icon
+      displayName += "\n§o(last seen " + getRelativeTime(now - entry.last_unix) + " ago)§r";
       form.button(displayName, "textures/ui/lan_icon");
     }
   });
 
   form.divider();
-  form.button("");
+  form.button(""); // Zurück-Button
 
   form.show(player).then((response) => {
-    if (response.selection == undefined) {
-      return -1;
-    }
+    if (response.selection === undefined) return -1;
+
     if (response.selection === newList.length) {
       return settings_main(player);
     } else {
@@ -6069,7 +6378,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
                   break;
           }
 
-          body_text += "Online: yes\n";
+          body_text += "Online: yes §7(for " + getRelativeTime(Math.floor(Date.now() / 1000) - selected_save_data.last_unix) + ")§r\n";
           body_text += "Permission level: "+ selected_player.playerPermissionLevel +"\n";
           body_text += "Platform: " + selected_player.clientSystemInfo.platformType + "\n";
           body_text += "Graphics mode: " + selected_player.graphicsMode + "\n";
@@ -6077,7 +6386,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
           body_text += input_text + "\n";
 
       } else {
-          body_text += "Online: yes\n";
+          body_text += "Online: yes §7(for " + getRelativeTime(Math.floor(Date.now() / 1000) - selected_save_data.last_unix) + ")§r\n";
       }
 
   } else {
@@ -6085,8 +6394,6 @@ function settings_rights_data(viewing_player, selected_save_data) {
   }
 
 
-
-  form.body(body_text);
   let actions = [];
 
   if (selected_save_data.id !== viewing_player.id) {
@@ -6134,29 +6441,33 @@ function settings_rights_data(viewing_player, selected_save_data) {
       }
     } else {
       body_text += "\n";
-      form.title("Edit your permission");
     }
-
-    form.button("Manage save data");
-    actions.push(() => {
-      settings_rights_manage_sd(viewing_player, selected_save_data);
-    });
-
-    form.divider()
-    form.button("");
-    actions.push(() => {
-      settings_rights_main(viewing_player, false);
-    });
-
-    form.show(viewing_player).then((response) => {
-      if (response.selection == undefined ) {
-        return -1
-      }
-      if (actions[response.selection]) {
-        actions[response.selection]();
-      }
-    });
+  } else {
+    form.title("Edit your permission");
+    body_text += "\n";
   }
+
+  form.body(body_text);
+
+  form.button("Manage save data");
+  actions.push(() => {
+    settings_rights_manage_sd(viewing_player, selected_save_data);
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    settings_rights_main(viewing_player, false);
+  });
+
+  form.show(viewing_player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
 }
 
 function settings_rights_manage_sd(viewing_player, selected_save_data) {
@@ -6249,25 +6560,34 @@ function close_world() {
 }
 
 async function update_loop() {
-    while (true) {
-      gesture_nod()
-      gesture_jump()
-      gesture_emote()
+  // Ein Objekt, um die vorherige Eintragsanzahl jedes Spielers zu speichern
+  let previous_entry_counts = {};
 
-      let save_data = load_save_data();
+  while (true) {
+    gesture_nod()
+    gesture_jump()
+    gesture_emote()
 
-      world.getAllPlayers().forEach(player => {
-        let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-        // When a player's sd gets removed he will kick out of the game triggering this...
-        if (player_sd_index) {
-          save_data[player_sd_index].last_unix = Math.floor(Date.now() / 1000)
+    let save_data = load_save_data();
+
+    world.getAllPlayers().forEach(player => {
+      let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+      if (player_sd_index === -1) {
+        let player_entry = save_data[player_sd_index];
+        let current_entry_count = player_entry.items ? player_entry.items.length : 0;
+
+        if (previous_entry_counts[player.id] !== current_entry_count) {
+          player_entry.last_unix = Math.floor(Date.now() / 1000);
           update_save_data(save_data);
-          save_data = load_save_data();
         }
-      });
 
-      await system.waitTicks(1);
-    }
+        previous_entry_counts[player.id] = current_entry_count;
+      }
+    });
+
+    await system.waitTicks(1);
+  }
 }
 
-system.run(() => update_loop())
+system.run(() => update_loop());
