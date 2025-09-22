@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B025",
+  build: "B026",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1758481264,
+  unix: 1758569760,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -6331,9 +6331,7 @@ function settings_rights_main(player) {
   });
 }
 
-
 function settings_rights_data(viewing_player, selected_save_data) {
-  let save_data = load_save_data()
   let selected_player = world.getAllPlayers().find(player => player.id == selected_save_data.id);
   let form = new ActionFormData();
 
@@ -6415,6 +6413,11 @@ function settings_rights_data(viewing_player, selected_save_data) {
       } else {
         form.label("§7This player is currently not op! To change that open Minecraft's player Permission page.§r\n");
 
+        form.button("Manage commands", "textures/ui/chat_send");
+        actions.push(() => {
+          settings_rights_manage_command(viewing_player, selected_save_data);
+        });
+
         /* Minecraft Bug: Op command doesn't via scripts
         form.button("§aMake op");
         actions.push(() => {
@@ -6449,7 +6452,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
 
   form.body(body_text);
 
-  form.button("Manage save data");
+  form.button("Manage save data", "textures/ui/storageIconColor");
   actions.push(() => {
     settings_rights_manage_sd(viewing_player, selected_save_data);
   });
@@ -6470,27 +6473,84 @@ function settings_rights_data(viewing_player, selected_save_data) {
   });
 }
 
-function settings_rights_manage_sd(viewing_player, selected_save_data) {
+function settings_rights_manage_command(viewing_player, selected_save_data) {
+  let save_data = load_save_data()
+  let actions = [];
+
   const form = new ActionFormData()
-    .title(`${selected_save_data.name}'s save data`)
-    .body("Select an option!")
-    .button("§dReset save data")
-    .button("§cDelete save data")
-    .button("");
+    .title(`Commands for ${selected_save_data.name}`)
+    .body("§aAllowed commands (2):")
+    .divider();
+
+  form.button("/fill")
+  form.button("/clone")
+
+
+  form.label("§cResricted commands (0):");
+  form.divider();
+
+  form.button("/fill")
+  form.button("/clone")
+
+
+  form.divider();
+  form.button("");
+  actions.push(() => {
+    settings_rights_data(viewing_player, selected_save_data);
+  });
 
   form.show(viewing_player).then(response => {
     if (response.selection == undefined ) {
       return -1
     }
 
-    const is_reset = response.selection === 0;
-    const is_delete = response.selection === 1;
 
-    if (response.selection === 2) {
-      settings_rights_data(viewing_player, selected_save_data);
-    } else {
-      handle_data_action(is_reset, is_delete, viewing_player, selected_save_data);
+  });
+}
+
+function settings_rights_manage_sd(viewing_player, selected_save_data) {
+  let save_data = load_save_data()
+  const actions = [];
+  const form = new ActionFormData()
+    .title(`${selected_save_data.name}'s save data`)
+    .body("Select an option!")
+
+
+  form.button("§dReset save data")
+  actions.push(() => {
+    handle_data_action(true, false, viewing_player, selected_save_data);
+  });
+
+  form.button("§cDelete save data");
+  actions.push(() => {
+    handle_data_action(false, true, viewing_player, selected_save_data);
+  });
+
+
+  if (version_info.release_type == 0) {
+    form.divider()
+    form.button("§eOpen in SD Editor");
+    actions.push(() => {
+      debug_sd_editor(
+        viewing_player,
+        () => debug_sd_editor(viewing_player, () => debug_main(viewing_player), []),
+        [save_data.findIndex(entry => entry.id === selected_save_data.id)]
+      );
+    });
+  }
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    settings_rights_data(viewing_player, selected_save_data);
+  });
+
+  form.show(viewing_player).then(response => {
+    if (response.selection == undefined ) {
+      return -1
     }
+    const action = actions[response.selection];
+    if (action) action();
   });
 }
 
@@ -6573,7 +6633,7 @@ async function update_loop() {
     world.getAllPlayers().forEach(player => {
       let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-      if (player_sd_index === -1) {
+      if (player_sd_index !== -1) {
         let player_entry = save_data[player_sd_index];
         let current_entry_count = player_entry.items ? player_entry.items.length : 0;
 
