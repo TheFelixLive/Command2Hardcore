@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B026",
+  build: "B027",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1758569760,
+  unix: 1759526831,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -16,9 +16,12 @@ const version_info = {
       "Achievements can now be earned with this add-on (thks. to Coolboyzay7 & Littlewolf_guy)",
       "Added auto correction for commands in the ui",
       "Added limited support for custom commands (thks. to xAssassin)",
+      "Command can now be restricted to certain player",
     ],
     // general_changes
     general_changes: [
+      "Added textures to commands in the ui",
+      "Premissions are now handeled by Minecraft",
     ],
     // bug_fixes
     bug_fixes: [
@@ -527,6 +530,7 @@ const command_list = [
   {
     name: "fill",
     aliases: ["fill"],
+    textures: "textures/items/wood_axe",
     description: "Fill area with blocks",
     syntaxes: [
       { type: "literal", value: "/fill" },
@@ -558,8 +562,19 @@ const command_list = [
   {
     name: "effect",
     aliases: ["effect"],
+    textures: "textures/ui/strength_effect",
     description: "Add/remove potion effects",
-    vc_hiperlink: () => { if (anyplayerHasEffect()) visual_command_effect_select(player); else visual_command_effect_add(player); },
+    recommended: (player) => player.getEffects().length > 0,
+    visible: (player) => {
+      return anyplayerHasEffect();
+    },
+
+    vc_hiperlink: (player) => {
+      return () => {
+        if (anyplayerHasEffect()) visual_command_effect_select(player);
+        else visual_command_effect_add(player);
+      };
+    },
     syntaxes: [
       { type: "literal", value: "/effect" },
       { type: "entityselector", name: "target" },
@@ -574,7 +589,10 @@ const command_list = [
     name: "give",
     aliases: ["give"],
     description: "Gives an item to a player",
-    vc_hiperlink: () => {if (version_info == 0) all_ItemTypes(player); else undefined;},
+    textures: "textures/items/diamond_sword",
+    vc_hiperlink: (player) => all_ItemTypes(player),
+    visible: (player) => version_info.release_type == 0,
+    recommended: (player) => false,
     syntaxes: [
       { type: "literal", value: "/give" },
       { type: "playerselector", name: "target" },
@@ -589,7 +607,10 @@ const command_list = [
     name: "summon",
     aliases: ["summon"],
     description: "Summons an entity",
-    vc_hiperlink: () => all_EntityTypes(player),
+    textures: "textures/items/spawn_eggs/spawn_egg_creeper",
+    vc_hiperlink: (player) => all_EntityTypes(player),
+    visible: (player) => true,
+    recommended: (player) => false,
     syntaxes: [
       { type: "literal", value: "/summon" },
       { type: "entityType", name: "entityType" },
@@ -602,6 +623,7 @@ const command_list = [
     name: "teleport",
     aliases: ["teleport", "tp"],
     description: "Teleport entity or player",
+    textures: "textures/ui/dressing_room_skins",
     syntaxes: [
       { type: "literal", value: "/teleport" },
       {
@@ -641,6 +663,7 @@ const command_list = [
   {
     name: "playsound",
     aliases: ["playsound"],
+    textures: "textures/ui/sound_glyph_color_2x",
     description: "Play a sound",
     syntaxes: [
       { type: "literal", value: "/playsound" },
@@ -673,7 +696,10 @@ const command_list = [
   {
     name: "weather",
     aliases: ["weather"],
-    vc_hiperlink: () => visual_command_weather(player),
+    textures: "textures/ui/cloud_only_storage",
+    vc_hiperlink: (player) => visual_command_weather(player),
+    visible: (player) => true,
+    recommended: (player) => false, //world.getDimension("overworld").getWeather() !== WeatherType.Clear,
     description: "Set or query the weather",
     syntaxes: [
       { type: "literal", value: "/weather" },
@@ -685,6 +711,7 @@ const command_list = [
   {
     name: "help",
     aliases: ["help", "?"],
+    textures: "textures/ui/icons/icon_staffpicks",
     cc_hidden: true,
     description: "Show help for commands or a specific command",
     syntaxes: [
@@ -706,6 +733,7 @@ const command_list = [
   {
     name: "daylock",
     aliases: ["daylock"],
+    txtures: "textures/ui/lock_color",
     description: "Lock/unlock the time of day",
     syntaxes: [
       { type: "literal", value: "/daylock" },
@@ -716,7 +744,8 @@ const command_list = [
   {
     name: "camera",
     aliases: ["camera"],
-    description: "Control camera (Bedrock)",
+    textures: "textures/ui/camera-yo",
+    description: "Control camera",
     syntaxes: [
       { type: "literal", value: "/camera" },
       { type: "playerselector", name: "targets" },
@@ -943,6 +972,7 @@ const command_list = [
   {
     name: "clear",
     aliases: ["clear"],
+    textures: "textures/ui/icon_none",
     description: "Clear items from a player's inventory",
     syntaxes: [
       { type: "literal", value: "/clear" },
@@ -954,6 +984,7 @@ const command_list = [
 
   {
     name: "clearspawnpoint",
+    textures: "textures/ui/icon_trash",
     aliases: ["clearspawnpoint"],
     description: "Clear world spawnpoint or player's spawn",
     syntaxes: [
@@ -965,6 +996,7 @@ const command_list = [
   {
     name: "clone",
     aliases: ["clone"],
+    textures: "textures/ui/icon_recipe_item",
     description: "Clone blocks from one region to another",
     syntaxes: [
       { type: "literal", value: "/clone" },
@@ -988,6 +1020,7 @@ const command_list = [
   {
     name: "damage",
     aliases: ["damage"],
+    textures: "textures/ui/heart_half",
     description: "Damage an entity",
     syntaxes: [
       { type: "literal", value: "/damage" },
@@ -1001,7 +1034,8 @@ const command_list = [
   {
     name: "dialogue",
     aliases: ["dialogue"],
-    description: "Show dialogue to player (Bedrock)",
+    textures: "textures/ui/icon_book_writable",
+    description: "Show an NPC dialogue to player",
     syntaxes: [
       { type: "literal", value: "/dialogue" },
       { type: "playerselector", name: "player" },
@@ -1012,6 +1046,7 @@ const command_list = [
   {
     name: "difficulty",
     aliases: ["difficulty"],
+    textures: "textures/ui/hardcore/freeze_heart",
     description: "Set or query difficulty",
     syntaxes: [
       { type: "literal", value: "/difficulty" },
@@ -1026,9 +1061,19 @@ const command_list = [
   {
     name: "enchant",
     aliases: ["enchant"],
-    vc_hiperlink: () => getCompatibleEnchantmentTypes(player.getComponent("minecraft:inventory")?.container?.getItem(player.selectedSlotIndex)).length > 0
-      ? visual_command_enchant(player)
-      : undefined,
+    textures: "textures/items/book_enchanted",
+    vc_hiperlink: (player) => visual_command_enchant(player),
+    visible: (player) => getCompatibleEnchantmentTypes(player.getComponent("minecraft:inventory")?.container?.getItem(player.selectedSlotIndex)).length > 0,
+    recommended: (player) => {
+      const firstWithEnchantable = world
+        .getAllPlayers()
+        .find(p => {
+          const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
+          return !!item && getCompatibleEnchantmentTypes(item).length > 0;
+        });
+
+      return !!firstWithEnchantable && firstWithEnchantable.name === player.name;
+    },
     description: "Apply an enchantment to an item",
     syntaxes: [
       { type: "literal", value: "/enchant" },
@@ -1040,6 +1085,7 @@ const command_list = [
 
   {
     name: "event",
+    textures: "textures/ui/raid_omen_effect",
     aliases: ["event"],
     description: "Trigger a game event (Bedrock)",
     syntaxes: [
@@ -1052,6 +1098,7 @@ const command_list = [
   {
     name: "experience",
     aliases: ["experience", "xp"],
+    textures: "textures/items/experience_bottle",
     description: "Grant or set experience points/levels",
     syntaxes: [
       { type: "literal", value: "/experience" },
@@ -1069,7 +1116,8 @@ const command_list = [
   {
     name: "fog",
     aliases: ["fog"],
-    description: "Control fog (Bedrock)",
+    textures: "textures/ui/bottle_empty_pocket",
+    description: "Control fog",
     syntaxes: [
       { type: "literal", value: "/fog" },
 
@@ -1206,6 +1254,7 @@ const command_list = [
     name: "function",
     aliases: ["function"],
     description: "Run a function",
+    textures: "textures/ui/copy",
     syntaxes: [
       { type: "literal", value: "/function" },
       { type: "string", name: "name" }
@@ -1215,6 +1264,7 @@ const command_list = [
   {
     name: "gamemode",
     aliases: ["gamemode", "gm"],
+    textures: "textures/ui/permissions_op_crown",
     description: "Set a player's game mode",
     syntaxes: [
       { type: "literal", value: "/gamemode" },
@@ -1231,6 +1281,13 @@ const command_list = [
     name: "gamerule",
     aliases: ["gamerule"],
     cc_hidden: true,
+    textures: "textures/ui/settings_pause_menu_icon",
+    vc_hiperlink: (player) =>
+      version_info.release_type !== 2
+        ? (load_save_data().find(entry => entry.id === player.id)?.quick_run
+            ? visual_command_gamerule(player)
+            : visual_command_gamerule_quick_run(player))
+        : undefined,
     description: "Set or query a gamerule",
     syntaxes: [
       { type: "literal", value: "/gamerule" },
@@ -1242,6 +1299,7 @@ const command_list = [
   {
     name: "hud",
     aliases: ["hud"],
+    textures: "textures/ui/hunger_full",
     description: "Control HUD elements",
     syntaxes: [
       { type: "literal", value: "/hud" },
@@ -1282,6 +1340,7 @@ const command_list = [
   {
     name: "inputpermission",
     aliases: ["inputpermission"],
+    textures: "textures/ui/controller_glyph_color_switch",
     description: "Grant or revoke input permissions",
     syntaxes: [
       { type: "literal", value: "/inputpermission" },
@@ -1322,6 +1381,7 @@ const command_list = [
   {
     name: "kick",
     aliases: ["kick"],
+    textures: "textures/ui/profile_glyph_color",
     cc_hidden: true,
     description: "Kick a player from the server",
     syntaxes: [
@@ -1334,6 +1394,7 @@ const command_list = [
   {
     name: "kill",
     aliases: ["kill"],
+    textures: "textures/ui/heart_background",
     description: "Kill entities",
     syntaxes: [
       { type: "literal", value: "/kill" },
@@ -1344,6 +1405,7 @@ const command_list = [
   {
     name: "music",
     aliases: ["music"],
+    textures: "textures/ui/sound_glyph_color_2x",
     description: "Play / queue / stop music tracks (Bedrock)",
     syntaxes: [
       { type: "literal", value: "/music" },
@@ -1409,6 +1471,7 @@ const command_list = [
   {
     name: "particle",
     aliases: ["particle"],
+    textures: "textures/ui/realms_particles",
     description: "Spawn particles",
     syntaxes: [
       { type: "literal", value: "/particle" },
@@ -1421,6 +1484,7 @@ const command_list = [
   {
     name: "playanimation",
     aliases: ["playanimation"],
+    textures: "textures/ui/icons/icon_trailer",
     description: "Play an animation on an entity",
     syntaxes: [
       { type: "literal", value: "/playanimation" },
@@ -1432,6 +1496,7 @@ const command_list = [
   {
     name: "recipe",
     aliases: ["recipe"],
+    textures: "textures/ui/icon_book_writable",
     description: "Grant or revoke recipes",
     syntaxes: [
       { type: "literal", value: "/recipe" },
@@ -1483,6 +1548,7 @@ const command_list = [
   {
     name: "replaceitem",
     aliases: ["replaceitem"],
+    textures: "textures/ui/icon_new_item",
     description: "Replaces items in inventories or block containers",
     syntaxes: [
       { type: "literal", value: "/replaceitem" },
@@ -1521,7 +1587,8 @@ const command_list = [
   {
     name: "ride",
     aliases: ["ride"],
-    description: "Manage entity riding (Bedrock)",
+    textures: "textures/items/saddle",
+    description: "Manage entity riding",
     syntaxes: [
       { type: "literal", value: "/ride" },
       { type: "entityselector", name: "rider" },
@@ -1583,6 +1650,7 @@ const command_list = [
   {
     name: "schedule",
     aliases: ["schedule"],
+    textures: "textures/items/clock_item",
     description: "Schedule a function or command",
     syntaxes: [
       { type: "literal", value: "/schedule" },
@@ -1630,7 +1698,8 @@ const command_list = [
   {
     name: "scoreboard",
     aliases: ["scoreboard"],
-    description: "Manage objectives, players, and teams",
+    textures: "textures/ui/dressing_room_skins",
+    description: "Manage objectives and players",
     syntaxes: [
       { type: "literal", value: "/scoreboard" },
 
@@ -1729,6 +1798,7 @@ const command_list = [
   {
     name: "setworldspawn",
     aliases: ["setworldspawn"],
+    textures: "textures/items/compass_item",
     description: "Set the world spawn position",
     syntaxes: [
       { type: "literal", value: "/setworldspawn" },
@@ -1739,6 +1809,7 @@ const command_list = [
   {
     name: "spawnpoint",
     aliases: ["spawnpoint"],
+    textures: "textures/items/recovery_compass_item",
     description: "Set a player's spawnpoint",
     syntaxes: [
       { type: "literal", value: "/spawnpoint" },
@@ -1751,6 +1822,7 @@ const command_list = [
     name: "spreadplayers",
     aliases: ["spreadplayers"],
     description: "Spread entities around a point",
+    textures: "textures/items/ender_pearl",
     syntaxes: [
       { type: "literal", value: "/spreadplayers" },
       { type: "location", name: "center" },
@@ -1775,6 +1847,7 @@ const command_list = [
     name: "structure",
     aliases: ["structure"],
     description: "Save, load, or manage structures",
+    textures: "textures/ui/structure_block",
     syntaxes: [
       { type: "literal", value: "/structure" },
 
@@ -1886,6 +1959,7 @@ const command_list = [
     name: "tag",
     aliases: ["tag"],
     description: "Add/remove/list tags on entities",
+    textures: "textures/items/name_tag",
     syntaxes: [
       { type: "literal", value: "/tag" },
       {
@@ -1920,6 +1994,7 @@ const command_list = [
   {
     name: "tellraw",
     aliases: ["tellraw"],
+    textures: "textures/ui/achievements_pause_menu_icon",
     cc_hidden: true,
     description: "Send JSON-formatted chat messages",
     syntaxes: [
@@ -1932,6 +2007,7 @@ const command_list = [
   {
     name: "testfor",
     aliases: ["testfor"],
+    textures: "textures/ui/magnifyingGlass",
     description: "Test for entities matching criteria",
     syntaxes: [
       { type: "literal", value: "/testfor" },
@@ -1942,6 +2018,7 @@ const command_list = [
   {
     name: "testforblock",
     aliases: ["testforblock"],
+    textures: "textures/ui/magnifyingGlass",
     description: "Test a single block for a type/state",
     syntaxes: [
       { type: "literal", value: "/testforblock" },
@@ -1954,6 +2031,7 @@ const command_list = [
   {
     name: "testforblocks",
     aliases: ["testforblocks"],
+    textures: "textures/ui/magnifyingGlass",
     description: "Test that two regions contain identical blocks",
     syntaxes: [
       { type: "literal", value: "/testforblocks" },
@@ -1983,7 +2061,8 @@ const command_list = [
   {
     name: "tickingarea",
     aliases: ["tickingarea"],
-    description: "Manage ticking areas (Bedrock)",
+    textures: "textures/items/redstone_dust",
+    description: "Manage ticking areas",
     syntaxes: [
       { type: "literal", value: "/tickingarea" },
 
@@ -2034,8 +2113,10 @@ const command_list = [
   {
     name: "time",
     aliases: ["time"],
+    textures: "textures/items/clock_item",
     description: "Change or query the time",
-    vc_hiperlink: () => visual_command_time(player),
+    vc_hiperlink: (player) => visual_command_time(player),
+    recommended: (player) => !(world.getTimeOfDay() < 12000),
     syntaxes: [
       { type: "literal", value: "/time" },
       {
@@ -2088,6 +2169,7 @@ const command_list = [
   {
     name: "title",
     aliases: ["title"],
+    textures: "textures/ui/comment",
     description: "Display titles to players",
     syntaxes: [
       { type: "literal", value: "/title" },
@@ -2132,6 +2214,7 @@ const command_list = [
   {
     name: "titleraw",
     aliases: ["titleraw"],
+    textures: "textures/ui/achievements_pause_menu_icon",
     description: "Display raw JSON titles",
     syntaxes: [
       { type: "literal", value: "/titleraw" },
@@ -2166,6 +2249,7 @@ const command_list = [
 
   {
     name: "toggledownfall",
+    textures: "textures/ui/cloud_only_storage",
     aliases: ["toggledownfall"],
     description: "Toggle rain/snow",
     syntaxes: [{ type: "literal", value: "/toggledownfall" }]
@@ -2174,7 +2258,8 @@ const command_list = [
   {
     name: "camerashake",
     aliases: ["camerashake"],
-    description: "Shake the camera for one or more players (Bedrock)",
+    textures: "textures/ui/camera-yo",
+    description: "Shake the camera for one or more players",
     syntaxes: [
       { type: "literal", value: "/camerashake" },
       {
@@ -2204,6 +2289,7 @@ const command_list = [
   {
     name: "list",
     aliases: ["list"],
+    textures: "textures/ui/lan_icon",
     cc_hidden: true,
     description: "List players on the server or query server info",
     syntaxes: [
@@ -2214,6 +2300,7 @@ const command_list = [
   {
     name: "loot",
     aliases: ["loot"],
+    textures: "textures/blocks/ender_chest_front",
     description: "Give or spawn loot from a loot table",
     syntaxes: [
       { type: "literal", value: "/loot" },
@@ -2252,6 +2339,7 @@ const command_list = [
   {
     name: "place",
     aliases: ["place"],
+    textures: "textures/ui/icons/icon_new",
     description: "Place an item or block at a position (utility command)",
     syntaxes: [
       { type: "literal", value: "/place" },
@@ -2305,6 +2393,7 @@ const command_list = [
     name: "say",
     aliases: ["say"],
     cc_hidden: true,
+    textures: "textures/ui/achievements_pause_menu_icon",
     description: "Broadcast a chat message to all players",
     syntaxes: [
       { type: "literal", value: "/say" },
@@ -2315,6 +2404,7 @@ const command_list = [
   {
     name: "script",
     aliases: ["script"],
+    textures: "textures/ui/ui_debug_glyph_color",
     description: "Debugging, profiling and diagnostics controls for the scripting system (Bedrock)",
     syntaxes: [
       { type: "literal", value: "/script" },
@@ -2385,6 +2475,7 @@ const command_list = [
   {
     name: "tell",
     cc_hidden: true,
+    textures: "textures/ui/achievements_pause_menu_icon",
     aliases: ["tell", "msg", "w"],
     description: "Send a private message to another player (whisper)",
     syntaxes: [
@@ -2397,6 +2488,7 @@ const command_list = [
   {
     name: "transfer",
     aliases: ["transfer"],
+    textures: "textures/ui/realmsIcon",
     description: "Transfer a player to another server (proxy/bedrock linking)",
     syntaxes: [
       { type: "literal", value: "/transfer" },
@@ -2411,6 +2503,7 @@ const command_list = [
     name: "wsserver",
     aliases: ["wsserver"],
     description: "Start/stop/query the WebSocket server (dev/admin)",
+    textures: "textures/ui/ui_debug_glyph_color",
     syntaxes: [
       { type: "literal", value: "/wsserver" },
       {
@@ -2786,6 +2879,7 @@ function create_player_save_data(playerId, playerName) {
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
       quick_run: false,
+      allowed_commands: [],
   });
 
   let player_sd_index = save_data.findIndex(entry => entry.id === playerId);
@@ -3267,12 +3361,6 @@ function buildEnchantmentCategories(item, compatibleEnchants) {
   }
   return comps;
 }
-
-let currentWeather = WeatherType.Clear;
-
-world.afterEvents.weatherChange.subscribe(ev => {
-  currentWeather = ev.newWeather;
-});
 
 /*------------------------
   Custom Command Helpers
@@ -4077,19 +4165,32 @@ function main_menu(player) {
       .slice(0, 2);  // Take the most recent 2 entries
 
     sortedHistory.forEach(c => {
-      let commandText = c.command.split(" ")[0];  // Only take the part before the first space
+      let commandText = c.command.split(" ")[0].replace(/^\//, "").toLowerCase();
+
       let statusText = c.successful ? "§2ran§r" : "§cfailed§r";
       let relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - c.unix);
 
-      form.button(`${commandText}\n${statusText} | ${relativeTime} ago`);
+      // Suche in command_list (aliases normalisiert) nach match
+      let matchingCommand = command_list.find(cmd =>
+        Array.isArray(cmd.aliases) &&
+        cmd.aliases.map(a => a.toLowerCase()).includes(commandText)
+      );
+
+      // Wenn match: benutze dessen textures, sonst Default
+      let texture = matchingCommand && matchingCommand.textures
+        ? matchingCommand.textures
+        : "textures/ui/chat_send";
+
+      form.button(`/${commandText}\n${statusText} | ${relativeTime} ago`, texture);
       actions.push(() => {
         if (save_data[player_sd_index].quick_run) {
-          execute_command(player, c.command)
+          execute_command(player, c.command);
         } else {
           command_menu(player, c.command);
         }
       });
     });
+
 
     // Show "Show more" button only if there are more than 2 entries in command history
     if (save_data[player_sd_index].command_history.length > 2) {
@@ -4245,13 +4346,10 @@ function command_history_menu(player) {
     "July","August","September","October","November","December"
   ];
 
-  let lastGroup = null;
-
-  sortedHistory.forEach(entry => {
-    const diffSec = now - entry.unix;
-
-    // Lokale Zeit des Events
-    const localUnix = entry.unix + utcOffsetMinutes * 60;
+  // Hilfsfunktion: ermittelt group und label für einen history-entry (verwende gleiche Logik wie später)
+  function determineGroupLabel(entryUnix) {
+    const diffSec = now - entryUnix;
+    const localUnix = entryUnix + utcOffsetMinutes * 60;
     const date = new Date(localUnix * 1000);
 
     const year = date.getFullYear();
@@ -4259,7 +4357,6 @@ function command_history_menu(player) {
     const hour = date.getHours();
     const minute = date.getMinutes();
 
-    // Gruppen- und Label-Logik
     let group, label;
     if (diffSec < 3600) {
       label = `${hour}:${String(minute).padStart(2,'0')} o'clock`;
@@ -4289,18 +4386,62 @@ function command_history_menu(player) {
       label = String(year);        group = `year-${year}`;
     }
 
-    // Label pro Gruppe nur einmal anzeigen
+    return { group, label };
+  }
+
+  // 1. Durchlauf: Zähle Einträge pro Gruppe
+  const groupCounts = {};
+  sortedHistory.forEach(entry => {
+    const { group } = determineGroupLabel(entry.unix);
+    groupCounts[group] = (groupCounts[group] || 0) + 1;
+  });
+
+  let lastGroup = null;
+
+  // 2. Durchlauf: Erzeuge Form-Elemente; beim ersten Label-Anzeigen ggf. Anzahl anhängen
+  sortedHistory.forEach(entry => {
+    const diffSec = now - entry.unix;
+
+    // Lokale Zeit des Events
+    const localUnix = entry.unix + utcOffsetMinutes * 60;
+    const date = new Date(localUnix * 1000);
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+
+    // Gruppen- und Label-Logik (machbar auch durch die Hilfsfunktion)
+    const { group, label: baseLabel } = determineGroupLabel(entry.unix);
+
+    // Label pro Gruppe nur einmal anzeigen (und nur wenn saveData[0].utc gesetzt ist)
     if (group !== lastGroup && saveData[0].utc) {
-      form.label(label);
+      let labelToShow = baseLabel;
+      const count = groupCounts[group] || 0;
+      if (count >= 3) {
+        labelToShow = `${baseLabel} (${count})`;
+      }
+      form.label(labelToShow);
       lastGroup = group;
     }
 
     // Button mit Kommando-Infos
-    const cmdName = (entry.command || "").split(" ")[0] || entry.command || "(unknown)";
+    const cmdName = (entry.command || "").split(" ")[0].replace(/^\//, "").toLowerCase();
     const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
     const relativeTime = getRelativeTime(diffSec);
 
-    form.button(`${cmdName}\n${statusText} | ${relativeTime} ago`);
+    let matchingCommand = command_list.find(cmd =>
+      Array.isArray(cmd.aliases) &&
+      cmd.aliases.map(a => a.toLowerCase()).includes(cmdName)
+    );
+
+    // Wenn match: benutze dessen textures, sonst Default
+    let texture = matchingCommand && matchingCommand.textures
+      ? matchingCommand.textures
+      : "textures/ui/chat_send";
+
+
+    form.button(`/${cmdName}\n${statusText} | ${relativeTime} ago`, texture);
     actions.push(() => {
       if (saveData[playerIndex].quick_run) {
         execute_command(player, entry.command, player);
@@ -4319,6 +4460,7 @@ function command_history_menu(player) {
     if (actions[response.selection]) actions[response.selection]();
   });
 }
+
 
 function command_menu(player, command) {
   let form = new ModalFormData();
@@ -4363,6 +4505,38 @@ function command_menu(player, command) {
 async function execute_command(source, cmd, target = "server") {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
+
+  const firstToken = (cmd || "").trim().split(/\s+/)[0] || "";
+  const commandName = firstToken.replace(/^\//, "").toLowerCase();
+
+  const playerAllowed = Array.isArray(save_data[player_sd_index].allowed_commands)
+  ? save_data[player_sd_index].allowed_commands
+  : [];
+
+  // Prüfe, ob der Command in command_list enthalten ist und finde seinen Index
+  let cmdIndexInList = -1;
+  if (Array.isArray(command_list)) {
+    cmdIndexInList = command_list.findIndex(c => {
+      if (!c || !c.name) return false;
+      return c.name.toLowerCase() === commandName;
+    });
+  }
+
+
+  if (cmdIndexInList !== -1 && !playerAllowed.includes(cmdIndexInList) && source.playerPermissionLevel !== 2) {
+    save_data[player_sd_index].command_history.push({
+      command: cmd,
+      successful: false,
+      unix: Math.floor(Date.now() / 1000)
+    });
+    update_save_data(save_data);
+
+    const errMsg = `This Command is restriced by your Admin.`;
+    source.sendMessage("§c" + errMsg);
+    command_menu_result_e(source, errMsg, cmd);
+    return false;
+  }
+
   let can_run = true;
 
   let matchedBlock = null;
@@ -4418,6 +4592,10 @@ async function execute_command(source, cmd, target = "server") {
       existingCommand.successful = success;
       existingCommand.unix = Math.floor(Date.now() / 1000);
     } else {
+      if (save_data[player_sd_index].command_history.length >= 100) {
+        save_data[player_sd_index].command_history.shift();
+      }
+
       save_data[player_sd_index].command_history.push({
         command: cmd,
         successful: success,
@@ -4436,6 +4614,10 @@ async function execute_command(source, cmd, target = "server") {
       existingCommand.successful = false;
       existingCommand.unix = Math.floor(Date.now() / 1000);
     } else {
+      if (save_data[player_sd_index].command_history.length >= 100) {
+        save_data[player_sd_index].command_history.shift();
+      }
+
       save_data[player_sd_index].command_history.push({
         command: cmd,
         successful: false,
@@ -4531,55 +4713,31 @@ function visual_command(player) {
   form.title("Visual commands");
   form.body("Select a command!");
 
-  // --- Enchant ---
-  for (const p of world.getAllPlayers()) {
-    const item = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
-    if (!item) continue;
-
-    const compatibleEnchants = getCompatibleEnchantmentTypes(item);
-    if (!(compatibleEnchants.length > 0)) continue;
-
-    addEntry("Enchant", "textures/items/book_enchanted", () => visual_command_enchant(player), p.name === player.name);
-    break;
-  }
-
-  // --- Gamerule ---
-  if (version_info.release_type !== 2) {
-    addEntry("Gamerule", "textures/ui/icon_iron_pickaxe",
-      () => { if (save_data[player_sd_index].quick_run) visual_command_gamerule(player); else visual_command_gamerule_quick_run(player); },
+  // --- Run via. Text box ---
+  if (true) {
+    addEntry("type a command", "textures/ui/chat_send",
+      () => { command_menu(player); },
       false
     );
   }
 
-  // --- Run via. Text box ---
+  // --- Dynamically add commands from command_list ---
+  for (const command_entry of command_list) {
+    if (typeof command_entry.vc_hiperlink !== "function") continue;
 
-  addEntry("Type a command", "textures/ui/chat_send",
-    () => { command_menu(player); },
-    false
-  );
+    const visible = typeof command_entry.visible === "function"
+      ? !!command_entry.visible(player)
+      : true;
 
+    if (!visible) continue;
 
+    const recommendedFlag = typeof command_entry.recommended === "function"
+    ? !!command_entry.recommended(player)
+    : !!command_entry.recommended;
 
-  // --- Effect: action hängt von anyplayerHasEffect() ab; markiere empfohlen wenn Effekte vorhanden sind ---
-  const effectHas = anyplayerHasEffect();
-  addEntry("Effect", "textures/ui/absorption_effect",
-    () => { if (effectHas) visual_command_effect_select(player); else visual_command_effect_add(player); },
-    player.getEffects().length > 0
-  );
-
-  // --- Summon ---
-  addEntry("Summon", "textures/items/spawn_eggs/spawn_egg_agent", () => all_EntityTypes(player), false);
-
-  // --- Give ---
-  if (version_info.release_type == 0) {
-    addEntry("Give", "textures/ui/recipe_book_icon", () => all_ItemTypes(player), false);
+    addEntry(command_entry.name, command_entry.textures, () => command_entry.vc_hiperlink(player), recommendedFlag);
   }
 
-  // --- Time ---
-  addEntry("Time", "textures/items/clock_item", () => visual_command_time(player), !(world.getTimeOfDay() < 12000));
-
-  // --- Weather ---
-  addEntry("Weather", "textures/ui/cloud_only_storage", () => visual_command_weather(player), currentWeather !== WeatherType.Clear);
 
 
   recommendedEntries.sort((a, b) => a.label.localeCompare(b.label));
@@ -5998,6 +6156,19 @@ function debug_main(player) {
     return test_fix(player)
   })
 
+  form.button("Test history");
+  actions.push(() => {
+    save_data[player_sd_index].command_history = command_list.map(cmd => ({
+      unix: Math.floor(Date.now() / 1000),
+      command: "/" + cmd.name,
+      success: true
+    }));
+
+    update_save_data(save_data);
+    return main_menu(player);
+
+  })
+
   form.divider()
   form.button("");
   actions.push(() => {
@@ -6393,6 +6564,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
 
 
   let actions = [];
+  form.body(body_text);
 
   if (selected_save_data.id !== viewing_player.id) {
     form.title("Edit "+ selected_save_data.name +"'s permission");
@@ -6447,10 +6619,10 @@ function settings_rights_data(viewing_player, selected_save_data) {
     }
   } else {
     form.title("Edit your permission");
-    body_text += "\n";
+    form.label("\n");
   }
 
-  form.body(body_text);
+
 
   form.button("Manage save data", "textures/ui/storageIconColor");
   actions.push(() => {
@@ -6474,37 +6646,116 @@ function settings_rights_data(viewing_player, selected_save_data) {
 }
 
 function settings_rights_manage_command(viewing_player, selected_save_data) {
-  let save_data = load_save_data()
+  let form = new ActionFormData()
   let actions = [];
 
-  const form = new ActionFormData()
-    .title(`Commands for ${selected_save_data.name}`)
-    .body("§aAllowed commands (2):")
-    .divider();
+  const cmdList = Array.isArray(command_list) ? command_list : [];
+  const allowedIdxs = Array.isArray(selected_save_data.allowed_commands) ? selected_save_data.allowed_commands : [];
 
-  form.button("/fill")
-  form.button("/clone")
+  let allowedCommands = cmdList
+    .map((c, i) => ({ ...c, _index: i }))
+    .filter(item => allowedIdxs.includes(item._index));
 
+  let restrictedCommands = cmdList
+    .map((c, i) => ({ ...c, _index: i }))
+    .filter(item => !allowedIdxs.includes(item._index));
 
-  form.label("§cResricted commands (0):");
-  form.divider();
+  // Alphabetisch nach name sortieren
+  allowedCommands.sort((a, b) => a.name.localeCompare(b.name));
+  restrictedCommands.sort((a, b) => a.name.localeCompare(b.name));
 
-  form.button("/fill")
-  form.button("/clone")
+  // =========================
+  // Allowed commands
+  // =========================
+  let hasAllowed = false;
+  if (allowedCommands.length > 0) {
+    hasAllowed = true;
 
+    form.body(`§aAllowed commands (${allowedCommands.length}):`)
+        .divider();
 
-  form.divider();
+    allowedCommands.forEach((cmdObj) => {
+      form.button(`/${cmdObj.name}`);
+
+      actions.push(() => {
+        const sd = load_save_data();
+        const saveIndex = sd.findIndex(entry => entry.id === selected_save_data.id);
+        if (saveIndex === -1) return;
+
+        sd[saveIndex].allowed_commands = Array.isArray(sd[saveIndex].allowed_commands)
+          ? sd[saveIndex].allowed_commands.slice()
+          : [];
+
+        const cmdIdx = cmdObj._index;
+        const pos = sd[saveIndex].allowed_commands.indexOf(cmdIdx);
+        if (pos !== -1) {
+          sd[saveIndex].allowed_commands.splice(pos, 1);
+        }
+
+        update_save_data(sd);
+        selected_save_data.allowed_commands = sd[saveIndex].allowed_commands.slice();
+        return settings_rights_manage_command(viewing_player, selected_save_data);
+      });
+    });
+
+    form.divider();
+  }
+
+  // =========================
+  // Restricted commands
+  // =========================
+  if (restrictedCommands.length > 0) {
+    if (hasAllowed) {
+      // Already used body, so use label here
+      form.label(`§cRestricted commands (${restrictedCommands.length}):`)
+          .divider();
+    } else {
+      // No allowed commands shown, so restricted gets the body
+      form.body(`§cRestricted commands (${restrictedCommands.length}):`)
+          .divider();
+    }
+
+    restrictedCommands.forEach((cmdObj) => {
+      form.button(`/${cmdObj.name}`);
+
+      actions.push(() => {
+        const sd = load_save_data();
+        const saveIndex = sd.findIndex(entry => entry.id === selected_save_data.id);
+        if (saveIndex === -1) return;
+
+        sd[saveIndex].allowed_commands = Array.isArray(sd[saveIndex].allowed_commands)
+          ? sd[saveIndex].allowed_commands.slice()
+          : [];
+
+        const cmdIdx = cmdObj._index;
+        if (!sd[saveIndex].allowed_commands.includes(cmdIdx)) {
+          sd[saveIndex].allowed_commands.push(cmdIdx);
+        }
+
+        update_save_data(sd);
+        selected_save_data.allowed_commands = sd[saveIndex].allowed_commands.slice();
+        return settings_rights_manage_command(viewing_player, selected_save_data);
+      });
+    });
+
+    form.divider();
+  }
+
+  // =========================
+  // Back button
+  // =========================
   form.button("");
   actions.push(() => {
     settings_rights_data(viewing_player, selected_save_data);
   });
 
+  // Formular anzeigen und Auswahl ausführen
   form.show(viewing_player).then(response => {
     if (response.selection == undefined ) {
       return -1
     }
-
-
+    const action = actions[response.selection];
+    if (action) action();
   });
 }
 
