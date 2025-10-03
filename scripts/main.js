@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command2Hardcore",
   version: "v.4.0.0",
-  build: "B027",
-  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1759526831,
+  build: "B028",
+  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1759533593,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
@@ -22,6 +22,7 @@ const version_info = {
     general_changes: [
       "Added textures to commands in the ui",
       "Premissions are now handeled by Minecraft",
+      "Playtime will now be tracked in the world",
     ],
     // bug_fixes
     bug_fixes: [
@@ -31,7 +32,7 @@ const version_info = {
   }
 }
 
-print("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
+console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
 
 
 /*------------------------
@@ -2746,17 +2747,19 @@ function registerAllCommands(init) {
                 }
 
                 if (v.hasOwnProperty("id")) {
-                  if (typeof v.id === "number") {
-                    // Spieler prüfen
-                    const player = world.getAllPlayers().find(entity => entity.id === v.id);
-                    if (player) return String(player.name);
 
-                    // Entitys
-                    const entity = world.getEntity(v.id);
-                    if (entity) {
-                      return `@e[x=${entity.location.x},y=${entity.location.y},z=${entity.location.z}, r=20, type=!player, c=1]`;
-                    }
+                  if (Number(v.id)) {  // Prüft, ob es wirklich eine Zahl ist
+                      // Spieler prüfen
+                      const player = world.getAllPlayers().find(entity => entity.id === v.id);
+                      if (player) return String(player.name);
+
+                      // Entitys
+                      const entity = world.getEntity(v.id);
+                      if (entity) {
+                          return `@e[x=${entity.location.x},y=${entity.location.y},z=${entity.location.z}, r=20, type=!player, c=1]`;
+                      }
                   }
+
 
                   // Fallback falls nichts gefunden wird
                   return String(v.id);
@@ -2779,7 +2782,7 @@ function registerAllCommands(init) {
         });
 
       } catch (e) {
-        system.run(() => console.warn(`Konnte Befehl ${regName} nicht registrieren:`, e));
+        system.run(() => print(`Konnte Befehl ${regName} nicht registrieren:`, e));
       }
     }
   }
@@ -3372,7 +3375,7 @@ function registerBuiltInDynamicEnums(init) {
   function safeGetKeys(getAllCandidate, label) {
     try {
       if (!getAllCandidate || typeof getAllCandidate !== "function") {
-        system.run(() => console.warn(`${label}.getAll ist nicht vorhanden oder keine Funktion.`));
+        system.run(() => print(`${label}.getAll ist nicht vorhanden oder keine Funktion.`));
         return [];
       }
       const all = getAllCandidate(); // synchron aufrufen
@@ -3386,7 +3389,7 @@ function registerBuiltInDynamicEnums(init) {
       if (all && typeof all === "object") return Object.keys(all);
       return [];
     } catch (e) {
-      system.run(() => console.warn(`Fehler beim Erzeugen der ${label}-enum:`, e));
+      system.run(() => print(`Fehler beim Erzeugen der ${label}-enum:`, e));
       return [];
     }
   }
@@ -3397,7 +3400,7 @@ function registerBuiltInDynamicEnums(init) {
       init.customCommandRegistry.registerEnum("com2hard:effectType", effectValues);
       enums.effectType = "com2hard:effectType";
     } catch (e) {
-      system.run(() => console.warn("registerEnum effectType fehlgeschlagen:", e));
+      system.run(() => print("registerEnum effectType fehlgeschlagen:", e));
     }
   }
 
@@ -3407,7 +3410,7 @@ function registerBuiltInDynamicEnums(init) {
       init.customCommandRegistry.registerEnum("com2hard:enchantType", enchValues);
       enums.enchantType = "com2hard:enchantType";
     } catch (e) {
-      system.run(() => console.warn("registerEnum enchantType fehlgeschlagen:", e));
+      system.run(() => print("registerEnum enchantType fehlgeschlagen:", e));
     }
   }
 
@@ -3417,7 +3420,7 @@ function registerBuiltInDynamicEnums(init) {
       init.customCommandRegistry.registerEnum("com2hard:weathertype", weatherValues);
       enums.weathertype = "com2hard:weathertype";
     } catch (e) {
-      system.run(() => console.warn("registerEnum weathertype fehlgeschlagen:", e));
+      system.run(() => print("registerEnum weathertype fehlgeschlagen:", e));
     }
   }
 
@@ -3442,7 +3445,7 @@ function registerInlineEnum(init, commandName, paramName, valuesArray) {
     init.customCommandRegistry.registerEnum(enumId, entries);
     return enumId;
   } catch (e) {
-    system.run(() => console.warn(`Enum ${enumId} konnte nicht registriert werden:`, e));
+    system.run(() => print(`Enum ${enumId} konnte nicht registriert werden:`, e));
     return null;
   }
 }
@@ -3475,7 +3478,7 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
     // Wenn das Syntax-Element ein 'next' hat, handelt es sich um verzweigte/nested Syntax,
     // die sich nicht flach in mandatory/optional abbilden lässt -> IGNORIEREN.
     if (syn && Object.prototype.hasOwnProperty.call(syn, "next") && Array.isArray(syn.next) && syn.next.length > 0) {
-      system.run(() => console.warn(`Syntax-Element '${syn.name || syn.type}' in command '${cmd.name}' hat 'next' -> wird ignoriert (nicht abbildbar).`));
+      system.run(() => print(`Syntax-Element '${syn.name || syn.type}' in command '${cmd.name}' hat 'next' -> wird ignoriert (nicht abbildbar).`));
       continue;
     }
 
@@ -3494,7 +3497,7 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
         continue;
       } else {
         // **IGNORIERE** den Parameter wenn die dynamische enum nicht verfügbar ist (wie 'next' ungenutzt).
-        system.run(() => console.warn(`Dynamische enum '${syn.type}' nicht vorhanden -> Parameter '${syn.name}' wird zu Unbekannt.`));
+        system.run(() => print(`Dynamische enum '${syn.type}' nicht vorhanden -> Parameter '${syn.name}' wird zu Unbekannt.`));
       }
     }
 
@@ -3503,7 +3506,7 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
       const enumId = registerInlineEnum(init, cmd.name, syn.name || "enum", syn.value);
       if (!enumId) {
         // enum wurde herausgefiltert -> Parameter ignorieren
-        system.run(() => console.log(`Inline-enum für ${cmd.name}.${syn.name} wurde herausgefiltert -> kein Parameter.`));
+        system.run(() => print(`Inline-enum für ${cmd.name}.${syn.name} wurde herausgefiltert -> kein Parameter.`));
         continue;
       }
       const param = { type: CustomCommandParamType.Enum, name: enumId, optional: !!syn.optional };
@@ -3521,7 +3524,7 @@ function buildParamsFromTopLevel(init, cmd, enumsDynamic) {
     // Unbekannter Typ: fallback zu String
     const param = { type: CustomCommandParamType.String, name: syn.name || syn.type, optional: !!syn.optional };
     (param.optional ? optional : mandatory).push(param);
-    system.run(() => console.warn(`Unbekannter param type '${syn.type}' bei command '${cmd.name}' -> als String registriert.`));
+    system.run(() => print(`Unbekannter param type '${syn.type}' bei command '${cmd.name}' -> als String registriert.`));
   }
 
   return { mandatory, optional };
@@ -3613,7 +3616,7 @@ function fixArgument(typeDef, input) {
     ? typeDef.toLowerCase()
     : ((typeDef && (typeDef.name || typeDef.type)) || "").toLowerCase();
 
-  console.log(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
+  print(`[DEBUG] fixArgument: Typ="${typeName}" Input="${input}"`);
 
   const extractStrings = list => {
     if (!list) return [];
@@ -4506,6 +4509,20 @@ async function execute_command(source, cmd, target = "server") {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
 
+  if (!world.isHardcore && version_info.release_type !== 0) {
+    save_data[player_sd_index].command_history.push({
+      command: cmd,
+      successful: false,
+      unix: Math.floor(Date.now() / 1000)
+    });
+    update_save_data(save_data);
+
+    const errMsg = `This is a non Hardcore World! Use cheats instead.`;
+    source.sendMessage("§c" + errMsg);
+    command_menu_result_e(source, errMsg, cmd);
+    return false;
+  }
+
   const firstToken = (cmd || "").trim().split(/\s+/)[0] || "";
   const commandName = firstToken.replace(/^\//, "").toLowerCase();
 
@@ -4635,7 +4652,7 @@ async function execute_command(source, cmd, target = "server") {
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
   let actions = [];
-  let suggestion = correctCommand(command) // Is disabled because it is not good enough yet
+  let suggestion = (world.isHardcore || version_info.release_type == 0)? correctCommand(command) : undefined
 
   form.title("Command Result");
 
@@ -4649,27 +4666,29 @@ function command_menu_result_e(player, message, command) {
     form.label("Did you mean:\n§a§o§7" + suggestion.command);
   }
 
-  if (suggestion && suggestion.fix_available) {
-    form.divider();
-    form.button("Use suggestion");
+  if (world.isHardcore || version_info.release_type == 0) {
+    if (suggestion && suggestion.fix_available) {
+      form.divider();
+      form.button("Use suggestion");
+      actions.push(() => {
+        execute_command(player, suggestion.command, player);
+      });
+    }
+
+    if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
+      form.button("Visual command");
+      actions.push(() => {
+        suggestion.vc_hiperlink(player);
+      });
+      form.divider();
+    }
+
+
+    form.button("Try again");
     actions.push(() => {
-      execute_command(player, suggestion.command, player);
+      command_menu(player, command);
     });
   }
-
-  if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
-    form.button("Visual command");
-    actions.push(() => {
-      suggestion.vc_hiperlink(player);
-    });
-    form.divider();
-  }
-
-
-  form.button("Try again");
-  actions.push(() => {
-    command_menu(player, command);
-  });
 
   form.button("");
   actions.push(() => {
