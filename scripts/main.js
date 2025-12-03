@@ -3,31 +3,26 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 
 const version_info = {
-  name: "Command2Hardcore",
-  version: "v.4.0.0",
-  build: "B028",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1759533593,
-  update_message_period_unix: 15897600, // Normally 6 months = 15897600
+  name: "Command&Achievement",
+  version: "v.5.0.0",
+  build: "B029",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1764782467,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
-      "Achievements can now be earned with this add-on (thks. to Coolboyzay7 & Littlewolf_guy)",
-      "Added auto correction for commands in the ui",
-      "Added limited support for custom commands (thks. to xAssassin)",
-      "Command can now be restricted to certain player",
+      "New name & branding: Command&Achievement",
+      "Redesigned user interface",
     ],
     // general_changes
     general_changes: [
-      "Added textures to commands in the ui",
-      "Premissions are now handeled by Minecraft",
-      "Playtime will now be tracked in the world",
+      "Removed Hardcore mode dependency",
+      "Commands can now removed from the history",
+      "Added informations to the command history"
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed a bug where commmand didn't execute properly in multiplayer",
-      "Fixed a bug where the visual effect command didn't work properly while clearing an effect in multiplayer",
     ]
   }
 }
@@ -42,8 +37,9 @@ console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+
 
 const links = [
   {name: "§l§5Github:§r", link: "github.com/TheFelixLive/Command2Hardcore"},
-  {name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1277546"},
-  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"},
+  {name: "§l§7Curseforge:§r", link: "curseforge.com/projects/1277546"},
+  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"}
+
 ]
 
 const timezone_list = [
@@ -566,10 +562,6 @@ const command_list = [
     textures: "textures/ui/strength_effect",
     description: "Add/remove potion effects",
     recommended: (player) => player.getEffects().length > 0,
-    visible: (player) => {
-      return anyplayerHasEffect();
-    },
-
     vc_hiperlink: (player) => {
       return () => {
         if (anyplayerHasEffect()) visual_command_effect_select(player);
@@ -591,9 +583,6 @@ const command_list = [
     aliases: ["give"],
     description: "Gives an item to a player",
     textures: "textures/items/diamond_sword",
-    vc_hiperlink: (player) => all_ItemTypes(player),
-    visible: (player) => version_info.release_type == 0,
-    recommended: (player) => false,
     syntaxes: [
       { type: "literal", value: "/give" },
       { type: "playerselector", name: "target" },
@@ -1284,7 +1273,7 @@ const command_list = [
     cc_hidden: true,
     textures: "textures/ui/settings_pause_menu_icon",
     vc_hiperlink: (player) =>
-      version_info.release_type !== 2
+      version_info.release_type < 2
         ? (load_save_data().find(entry => entry.id === player.id)?.quick_run
             ? visual_command_gamerule(player)
             : visual_command_gamerule_quick_run(player))
@@ -2549,7 +2538,7 @@ let system_privileges = 2
 -------------------------*/
 
 system.afterEvents.scriptEventReceive.subscribe(async event=> {
-   if (event.id === "multiple_menu:data" && (world.isHardcore || version_info.release_type == 0)) {
+   if (event.id === "multiple_menu:data") {
     let player = event.sourceEntity, data, scoreboard = world.scoreboard.getObjective("mm_data")
 
     // Reads data from the scoreboard
@@ -2605,7 +2594,7 @@ system.afterEvents.scriptEventReceive.subscribe(async event=> {
 let addon_list; // When initialized properly, it contains the data of all supported add-ons
 
 system.run(() => {
-  (world.isHardcore || version_info.release_type == 0)? initialize_multiple_menu() : undefined
+  initialize_multiple_menu()
 });
 
 async function initialize_multiple_menu() {
@@ -2944,10 +2933,6 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
   await system.waitTicks(40); // Wait for the player to be fully joined
-
-  if (!(world.isHardcore || version_info.release_type == 0)) {
-    return player.sendMessage("§l§4[§cError§4]§r This world is not a hardcore world! Use the native Chat instead!")
-  }
 
   if (version_info.release_type !== 2 && player.playerPermissionLevel === 2) {
     player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §l"+links[0].link)
@@ -4145,73 +4130,67 @@ function main_menu(player) {
   form.title("Main menu");
   form.body("Select an option!");
 
-  // This function is missing because I was not satisfied with the indexing, but the UI is finished, including examples!
-  if (version_info.release_type == 0) {
-    form.button("Search", "textures/ui/magnifyingGlass")
-    actions.push(() => search_menu(player));
+  // Run a Command
+  form.button("Run a command", "textures/ui/color_plus");
+  actions.push(() => {
+    visual_command(player);
+  });
+
+  // History
+  if (save_data[player_sd_index].command_history.length !== 0) {
     form.divider();
+    form.label("History");
 
-    form.label("Functions");
-    form.label("§7Comming soon")
-    form.divider();
-  }
+    // Originalreferenz für spätere Index-Suche
+    let originalHistory = save_data[player_sd_index].command_history;
+    let length = save_data[player_sd_index].command_history.length
 
-  // Button: Commands & History
-  if ((world.isHardcore || version_info.release_type == 0)) {
-    if (save_data[player_sd_index].command_history.length !== 0) {
-      form.label("Most recently used commands")
-    }
+    // Sortiert & kürzt auf 2 Einträge
+    let sortedHistory = [...originalHistory]
+      .sort((a, b) => b.unix - a.unix)
+      .slice(0, length > 3 ? 2 : 3);
 
-    // Sort the command history by unix timestamp and get the last 4 entries
-    let sortedHistory = save_data[player_sd_index].command_history
-      .sort((a, b) => b.unix - a.unix)  // Sort by unix timestamp, descending
-      .slice(0, 2);  // Take the most recent 2 entries
+    sortedHistory.forEach((c) => {
 
-    sortedHistory.forEach(c => {
+      // WICHTIG: Originalindex aus unsortierter History holen
+      let originalIndex = originalHistory.indexOf(c);
+
       let commandText = c.command.split(" ")[0].replace(/^\//, "").toLowerCase();
-
       let statusText = c.successful ? "§2ran§r" : "§cfailed§r";
       let relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - c.unix);
 
-      // Suche in command_list (aliases normalisiert) nach match
+      // Passenden Command suchen
       let matchingCommand = command_list.find(cmd =>
         Array.isArray(cmd.aliases) &&
         cmd.aliases.map(a => a.toLowerCase()).includes(commandText)
       );
 
-      // Wenn match: benutze dessen textures, sonst Default
-      let texture = matchingCommand && matchingCommand.textures
-        ? matchingCommand.textures
-        : "textures/ui/chat_send";
+      let texture = matchingCommand?.textures ?? "textures/ui/chat_send";
 
       form.button(`/${commandText}\n${statusText} | ${relativeTime} ago`, texture);
+
       actions.push(() => {
         if (save_data[player_sd_index].quick_run) {
           execute_command(player, c.command);
         } else {
-          command_menu(player, c.command);
+          // KORREKT: den originalen History-Index weitergeben
+          command_menu(player, c.command, originalIndex);
         }
       });
     });
 
-
-    // Show "Show more" button only if there are more than 2 entries in command history
-    if (save_data[player_sd_index].command_history.length > 2) {
+    if (length > 3) {
       form.button("Show more!");
       actions.push(() => {
         command_history_menu(player);
       });
     }
-
-    if (save_data[player_sd_index].command_history.length !== 0) {
-      form.divider()
-    }
-
-    form.button("Visual commands", "textures/ui/controller_glyph_color_switch");
-    actions.push(() => {
-      visual_command(player);
-    });
   }
+
+
+  form.divider()
+  form.label("Other");
+
 
   // Button: Settings
   form.button("Settings", "textures/ui/debug_glyph_color");
@@ -4240,78 +4219,6 @@ function main_menu(player) {
 }
 
 /*------------------------
- Search
--------------------------*/
-
-function search_menu(player, default_imput) {
-  const form = new ModalFormData();
-  const save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
-  form.title("Search");
-  form.textField("What are you looking for?", "e.g. Timezone settings", {tooltip: "Leave it blank to return to the main menu!", defaultValue: default_imput})
-
-
-  form.show(player).then(response => {
-    if (response.canceled) return -1
-
-    let search_imput = response.formValues[0]
-    if (search_imput == "") return main_menu(player)
-
-    search_menu_result(player, undefined, search_imput)
-  });
-}
-
-function search_menu_result(player, search_results, search_term) {
-  const form = new ActionFormData();
-  const save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-  let actions = []
-
-  // Template
-
-  form.title("Search");
-  form.body("3 search results for \""+ search_term+"\"");
-
-  form.divider();
-
-  form.label("Permission - 1")
-
-  form.button(player.name+"\n§o[...] "+search_term+" [...]", player.playerPermissionLevel === 2? "textures/ui/op" : "textures/ui/permissions_member_star"); // "search_term" here shut be prof rather the actuel term
-  actions.push(() => {
-    settings_rights_data(player, save_data[player_sd_index])
-  });
-
-  form.divider();
-
-  form.label("Settings - 2")
-
-  form.button("Debug\n§o[...] "+search_term+" [...]", "textures/ui/ui_debug_glyph_color");
-  actions.push(() => {
-    debug_main(player);
-  });
-
-  form.button("About", "textures/ui/infobulb");
-  actions.push(() => {
-    dictionary_about(player, false)
-  });
-
-  // Template - End
-
-  form.divider();
-
-  form.button("");
-  actions.push(() => search_menu(player, search_term));
-
-
-  form.show(player).then(response => {
-    if (response.selection != null && actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
-
-/*------------------------
  Enter Command
 -------------------------*/
 
@@ -4321,17 +4228,22 @@ function command_history_menu(player) {
 
   let saveData = load_save_data();
   let playerIndex = saveData.findIndex(entry => entry.id === player.id);
+  if (playerIndex === -1) return; // kein Spieler gefunden
 
   form.title("Command History");
   form.body("Select a command!");
 
+
+
   // defensiv: ensure history exists
-  const history = Array.isArray(saveData[playerIndex].command_history)
-    ? saveData[playerIndex].command_history.slice()
+  const originalHistory = Array.isArray(saveData[playerIndex].command_history)
+    ? saveData[playerIndex].command_history
     : [];
 
-  // Sort (neueste zuerst)
-  let sortedHistory = history.sort((a, b) => b.unix - a.unix);
+  if (!saveData[0].utc && originalHistory.length > 9 && player.playerPermissionLevel === 2) form.label("§7Confusing? Set your time zone in the settings; that will help, I promise!§r");
+
+  // Sortierte Kopie (originalHistory bleibt unverändert)
+  let sortedHistory = [...originalHistory].sort((a, b) => b.unix - a.unix);
 
   const now = Math.floor(Date.now() / 1000);
   const utcOffsetMinutes = Math.round((saveData[0]?.utc || 0) * 60); // default 0 wenn nicht gesetzt
@@ -4349,7 +4261,6 @@ function command_history_menu(player) {
     "July","August","September","October","November","December"
   ];
 
-  // Hilfsfunktion: ermittelt group und label für einen history-entry (verwende gleiche Logik wie später)
   function determineGroupLabel(entryUnix) {
     const diffSec = now - entryUnix;
     const localUnix = entryUnix + utcOffsetMinutes * 60;
@@ -4401,23 +4312,22 @@ function command_history_menu(player) {
 
   let lastGroup = null;
 
+  // Hilfsfunktion: finde originalen Index zuverlässig
+  function findOriginalIndex(entry) {
+    // möglichst eindeutige Felder vergleichen: unix + command (+ successful falls vorhanden)
+    return originalHistory.findIndex(e =>
+      e.unix === entry.unix &&
+      (e.command === entry.command) &&
+      (typeof e.successful === 'undefined' || e.successful === entry.successful)
+    );
+  }
+
   // 2. Durchlauf: Erzeuge Form-Elemente; beim ersten Label-Anzeigen ggf. Anzahl anhängen
-  sortedHistory.forEach(entry => {
+  sortedHistory.forEach((entry, sortedIndex) => {
     const diffSec = now - entry.unix;
 
-    // Lokale Zeit des Events
-    const localUnix = entry.unix + utcOffsetMinutes * 60;
-    const date = new Date(localUnix * 1000);
-
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-
-    // Gruppen- und Label-Logik (machbar auch durch die Hilfsfunktion)
     const { group, label: baseLabel } = determineGroupLabel(entry.unix);
 
-    // Label pro Gruppe nur einmal anzeigen (und nur wenn saveData[0].utc gesetzt ist)
     if (group !== lastGroup && saveData[0].utc) {
       let labelToShow = baseLabel;
       const count = groupCounts[group] || 0;
@@ -4428,7 +4338,6 @@ function command_history_menu(player) {
       lastGroup = group;
     }
 
-    // Button mit Kommando-Infos
     const cmdName = (entry.command || "").split(" ")[0].replace(/^\//, "").toLowerCase();
     const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
     const relativeTime = getRelativeTime(diffSec);
@@ -4438,18 +4347,21 @@ function command_history_menu(player) {
       cmd.aliases.map(a => a.toLowerCase()).includes(cmdName)
     );
 
-    // Wenn match: benutze dessen textures, sonst Default
     let texture = matchingCommand && matchingCommand.textures
       ? matchingCommand.textures
       : "textures/ui/chat_send";
 
-
     form.button(`/${cmdName}\n${statusText} | ${relativeTime} ago`, texture);
+
+    // Originalindex ermitteln, Fallback auf sortedIndex falls nicht gefunden
+    const originalIndex = findOriginalIndex(entry);
+    const indexToPass = originalIndex !== -1 ? originalIndex : sortedIndex;
+
     actions.push(() => {
       if (saveData[playerIndex].quick_run) {
         execute_command(player, entry.command, player);
       } else {
-        command_menu(player, entry.command);
+        command_menu(player, entry.command, indexToPass);
       }
     });
   });
@@ -4464,10 +4376,11 @@ function command_history_menu(player) {
   });
 }
 
-
-function command_menu(player, command) {
-  let form = new ModalFormData();
+function command_menu(player, command, history_index) {
   let save_data = load_save_data();
+
+  let form = new ModalFormData();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
   const playerNames = ["Server", ...world.getAllPlayers().map(p => p.name)];
   if (!playerNames.includes(player.name)) playerNames.unshift(player.name);
@@ -4480,19 +4393,44 @@ function command_menu(player, command) {
     { defaultValueIndex: playerNames.indexOf(player.name), tooltip: "If you select other players it will run also at that location.\n§7§oNote: The Server doesn't have some properties!" }
   );
 
+  if (typeof(history_index) === "number") {
+    let history_data = save_data[player_sd_index].command_history[history_index];
+    let build_date = convertUnixToDate(history_data.unix, save_data[0].utc || 0);
+
+    form.label("Previous Result:");
+    form.label(history_data.successful ? "§2Command executed successfully§r" : "§cCommand failed to execute§r");
+    form.label(save_data[0].utc === undefined ? "§7§oTime: " + getRelativeTime(Math.floor(Date.now() / 1000) - history_data.unix, player) + " ago" : "§7§oDate: " + `${build_date.day}.${build_date.month}.${build_date.year}`);
+    form.toggle("Delete from history", {tooltip: "If enabled, this command will be removed from your history and won't run anymore."});
+  }
+
   form.show(player).then(response => {
     if (response.canceled) return -1;
-    if (!response.formValues[0]) return visual_command(player);
 
-    let cmd = response.formValues[0].startsWith("/")
-      ? response.formValues[0]
-      : "/" + response.formValues[0];
+    const cmdVal = response.formValues[0];
+    const execByIdx = response.formValues[1];
+    const deleteToggle = response.formValues[5]
+
+
+    if (typeof(history_index) === "number" && deleteToggle) {
+      // Entferne den Eintrag aus der command_history
+      save_data[player_sd_index].command_history.splice(history_index, 1);
+      update_save_data(save_data);
+
+    }
+
+    if (!cmdVal || deleteToggle) {
+      return typeof(history_index) === "number" ? (save_data[player_sd_index].command_history.length > 3 ? command_history_menu(player) : main_menu(player)) : visual_command(player);
+    }
+
+    let cmd = cmdVal.startsWith("/")
+      ? cmdVal
+      : "/" + cmdVal;
 
     let targetIdentity;
-    if (response.formValues[1] === 0) {
+    if (execByIdx === 0) {
       targetIdentity = "server";
     } else {
-      const targetName = playerNames[response.formValues[1]];
+      const targetName = playerNames[execByIdx];
       targetIdentity = world.getAllPlayers().find(p => p.name === targetName);
     }
 
@@ -4508,20 +4446,6 @@ function command_menu(player, command) {
 async function execute_command(source, cmd, target = "server") {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
-
-  if (!world.isHardcore && version_info.release_type !== 0) {
-    save_data[player_sd_index].command_history.push({
-      command: cmd,
-      successful: false,
-      unix: Math.floor(Date.now() / 1000)
-    });
-    update_save_data(save_data);
-
-    const errMsg = `This is a non Hardcore World! Use cheats instead.`;
-    source.sendMessage("§c" + errMsg);
-    command_menu_result_e(source, errMsg, cmd);
-    return false;
-  }
 
   const firstToken = (cmd || "").trim().split(/\s+/)[0] || "";
   const commandName = firstToken.replace(/^\//, "").toLowerCase();
@@ -4652,7 +4576,7 @@ async function execute_command(source, cmd, target = "server") {
 function command_menu_result_e(player, message, command) {
   let form = new ActionFormData();
   let actions = [];
-  let suggestion = (world.isHardcore || version_info.release_type == 0)? correctCommand(command) : undefined
+  let suggestion = correctCommand(command)
 
   form.title("Command Result");
 
@@ -4666,29 +4590,27 @@ function command_menu_result_e(player, message, command) {
     form.label("Did you mean:\n§a§o§7" + suggestion.command);
   }
 
-  if (world.isHardcore || version_info.release_type == 0) {
-    if (suggestion && suggestion.fix_available) {
-      form.divider();
-      form.button("Use suggestion");
-      actions.push(() => {
-        execute_command(player, suggestion.command, player);
-      });
-    }
-
-    if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
-      form.button("Visual command");
-      actions.push(() => {
-        suggestion.vc_hiperlink(player);
-      });
-      form.divider();
-    }
-
-
-    form.button("Try again");
+  if (suggestion && suggestion.fix_available) {
+    form.divider();
+    form.button("Use suggestion");
     actions.push(() => {
-      command_menu(player, command);
+      execute_command(player, suggestion.command, player);
     });
   }
+
+  if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
+    form.button("Visual command");
+    actions.push(() => {
+      suggestion.vc_hiperlink(player);
+    });
+    form.divider();
+  }
+
+
+  form.button("Try again");
+  actions.push(() => {
+    command_menu(player, command);
+  });
 
   form.button("");
   actions.push(() => {
@@ -4714,75 +4636,113 @@ function command_menu_result_e(player, message, command) {
 function visual_command(player) {
   let form = new ActionFormData();
   let actions = [];
-  let save_data = load_save_data()
+  let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-
-  // Zwei Sammlungen: empfohlen und normal
+  // Kategorien-Container
   const recommendedEntries = [];
-  const normalEntries = [];
+  const optimizedEntries = [];
+  const allEntries = [];
 
   // Hilfsfunktion zum Registrieren eines Buttons (wird noch nicht ins Form eingefügt)
-  function addEntry(label, icon, actionFn, recommended = false) {
-    const entry = { label, icon, actionFn };
-    if (recommended) recommendedEntries.push(entry);
-    else normalEntries.push(entry);
+  function addTo(arr, label, icon, actionFn) {
+    arr.push({ label, icon, actionFn });
   }
 
-  form.title("Visual commands");
+  form.title("New Command");
   form.body("Select a command!");
 
-  // --- Run via. Text box ---
-  if (true) {
-    addEntry("type a command", "textures/ui/chat_send",
-      () => { command_menu(player); },
-      false
-    );
-  }
-
-  // --- Dynamically add commands from command_list ---
   for (const command_entry of command_list) {
-    if (typeof command_entry.vc_hiperlink !== "function") continue;
-
-    const visible = typeof command_entry.visible === "function"
-      ? !!command_entry.visible(player)
-      : true;
+    let visible = true;
+    if (typeof command_entry.visible === "function") {
+      visible = !!command_entry.visible(player);
+    }
 
     if (!visible) continue;
 
-    const recommendedFlag = typeof command_entry.recommended === "function"
-    ? !!command_entry.recommended(player)
-    : !!command_entry.recommended;
+    // bestimme recommended Flag (kann Funktion oder bool sein)
+    let recommendedFlag = false;
+    if (typeof command_entry.recommended === "function") {
+      try {
+        recommendedFlag = !!command_entry.recommended(player);
+      } catch (err) {
+        recommendedFlag = false;
+        console.error("recommended() error for command", command_entry.name, err);
+      }
+    } else {
+      recommendedFlag = !!command_entry.recommended;
+    }
 
-    addEntry(command_entry.name, command_entry.textures, () => command_entry.vc_hiperlink(player), recommendedFlag);
+    // action-Funktion (sichere Wrapper, damit this/args richtig sind)
+    const actionFn = () => {
+      if (typeof command_entry.vc_hiperlink === "function") {
+        const inner = command_entry.vc_hiperlink(player);
+        if (typeof inner === "function") inner();  // <- WICHTIG
+      } else {
+        command_menu(player, `/${command_entry.name}`);
+      }
+    };
+
+
+    // Kategorisierung mit Priorität: Recommended > Optimized (vc_hiperlink) > All Commands
+    if (recommendedFlag) {
+      addTo(recommendedEntries, command_entry.name, command_entry.textures, actionFn);
+      continue; // in Recommended einsortiert, ansonsten keine Duplikate
+    }
+
+    if (typeof command_entry.vc_hiperlink === "function") {
+      addTo(optimizedEntries, command_entry.name, command_entry.textures, actionFn);
+      continue;
+    }
+
+    addTo(allEntries, command_entry.name, command_entry.textures, actionFn);
   }
 
-
-
+  // Sortieren (optional alphabetisch)
   recommendedEntries.sort((a, b) => a.label.localeCompare(b.label));
-  normalEntries.sort((a, b) => a.label.localeCompare(b.label));
+  optimizedEntries.sort((a, b) => a.label.localeCompare(b.label));
+  allEntries.sort((a, b) => a.label.localeCompare(b.label));
 
+  // --- Formular befüllen ---
   if (recommendedEntries.length > 0) {
     form.label("Recommended");
     for (const e of recommendedEntries) {
-
-      e.icon? form.button(e.label, e.icon) : form.button(e.label);
+      e.icon ? form.button(e.label, e.icon) : form.button(e.label);
       actions.push(e.actionFn);
     }
     form.divider();
-    form.label("More commands");
   }
 
+  // --- General --- (separat)
+  form.label("General");
 
-  for (const e of normalEntries) {
-    e.icon? form.button(e.label, e.icon) : form.button(e.label);
-    actions.push(e.actionFn);
-  }
+  form.button("Typing", "textures/ui/chat_send");
+  actions.push(() => { command_menu(player); });
+
+  form.button("Create a chain", "textures/items/chain");
+  actions.push(() => { command_menu(player); });
 
   form.divider();
+
+  if (optimizedEntries.length > 0) {
+    form.label("Optimized");
+    for (const e of optimizedEntries) {
+      e.icon ? form.button(e.label, e.icon) : form.button(e.label);
+      actions.push(e.actionFn);
+    }
+    form.divider();
+  }
+
+  if (allEntries.length > 0) {
+    form.button("Show all commands", "textures/ui/more-dots");
+    actions.push(() => visual_command_unsupported(player, allEntries));
+  }
+
+  // Zurück-Button
   form.button("");
   actions.push(() => main_menu(player));
 
+  // Anzeige und Auswertung
   form.show(player).then((response) => {
     if (response.selection === undefined) {
       return -1;
@@ -4793,6 +4753,41 @@ function visual_command(player) {
     }
   });
 }
+
+function visual_command_unsupported(player, allEntries) {
+  let form = new ActionFormData();
+  let actions = [];
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("All Commands");
+  form.body("Select a command!");
+
+  // --- Formular befüllen ---
+  if (allEntries.length > 0) {
+    for (const e of allEntries) {
+      e.icon ? form.button(e.label, e.icon) : form.button(e.label);
+      actions.push(e.actionFn);
+    }
+    form.divider();
+  }
+
+  // Zurück-Button
+  form.button("");
+  actions.push(() => visual_command(player));
+
+  // Anzeige und Auswertung
+  form.show(player).then((response) => {
+    if (response.selection === undefined) {
+      return -1;
+    }
+    const idx = response.selection;
+    if (actions[idx]) {
+      actions[idx]();
+    }
+  });
+}
+
 
 /*------------------------
  visual_command: Gamerule
@@ -5234,53 +5229,6 @@ function visual_command_effect_config(player, id) {
 }
 
 /*------------------------
- visual_command: Give
--------------------------*/
-
-function all_ItemTypes(player) {
-  let form = new ActionFormData()
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-  let actions = []
-
-  form.title("Visual commands - summon");
-  form.body("What do you want to spawn?");
-
-  ItemTypes.getAll()
-  .sort((a, b) => a.id.localeCompare(b.id))
-  .forEach(e => {
-
-    const id = e.id.replace(/^minecraft:/, "");
-
-    // Deletes all entries that are on the blocklist!
-    if (!entity_blocklist.find(entity => entity.id == id)) {
-      form.button(id);
-
-      actions.push(() => save_data[player_sd_index].quick_run
-        ? execute_command(player, "give \""+player.name+"\" " + id, player)
-        : command_menu(player, "give \""+player.name+"\" " + id)
-      );
-    }
-  });
-
-  form.divider()
-  form.button("");
-  actions.push(() => {
-    return visual_command(player)
-  });
-
-
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (response.selection !== undefined && actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
-
-/*------------------------
  visual_command: Entity
 -------------------------*/
 
@@ -5505,7 +5453,7 @@ function settings_main(player) {
   }
 
   // Button 6: Dictionary
-  form.button("About\n" + (github_data? (compareVersions(version_info.release_type === 2 ? github_data.find(r => !r.prerelease)?.tag : github_data[0]?.tag, version_info.version) !== 1? "" : "§9Update available!"): ""), "textures/ui/infobulb");
+  form.button("About\n", "textures/ui/infobulb");
   actions.push(() => {
     dictionary_about(player, false)
   });
@@ -5838,7 +5786,7 @@ function settings_gestures(player) {
  Dictionary
 -------------------------*/
 
-function dictionary_about(player, show_ip) {
+function dictionary_about(player, show_ip = false) {
   let form = new ActionFormData()
   let actions = []
 
@@ -6110,7 +6058,7 @@ function dictionary_contact(player) {
     form.label(`${entry.name}\n${entry.link}`);
   }
 
-  if (save_data[player_sd_index].op) {
+  if (player.playerPermissionLevel === 2) {
     form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
     actions.push(() => {
       player.sendMessage("§l§7[§f"+ ("System") + "§7]§r SD Dump:\n"+JSON.stringify(save_data))
