@@ -5,13 +5,15 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command&Achievement",
   version: "v.5.0.0",
-  build: "B029",
+  build: "B030",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1764782467,
+  unix: 1764881799,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
+
+      "Introduction of Command Chains",
       "New name & branding: Command&Achievement",
       "Redesigned user interface",
     ],
@@ -19,7 +21,8 @@ const version_info = {
     general_changes: [
       "Removed Hardcore mode dependency",
       "Commands can now removed from the history",
-      "Added informations to the command history"
+      "Added informations to the command history",
+      "Added pages to the command history",
     ],
     // bug_fixes
     bug_fixes: [
@@ -2790,7 +2793,7 @@ system.beforeEvents.startup.subscribe((init) => {
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {utc: undefined, utc_auto: true, functions: []};
+  const default_save_data_structure = {utc: undefined, utc_auto: true};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -2871,6 +2874,8 @@ function create_player_save_data(playerId, playerName) {
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
       quick_run: false,
+      chain_commands: [],
+      ui_preferences: "history",
       allowed_commands: [],
   });
 
@@ -4136,8 +4141,80 @@ function main_menu(player) {
     visual_command(player);
   });
 
+  if (save_data[player_sd_index].chain_commands.length > 0 && save_data[player_sd_index].command_history.length > 0) {
+    if (save_data[player_sd_index].ui_preferences !== "chain") {
+      form.button("Chain Commands", "textures/items/chain");
+      actions.push(() => {
+        chain_overview(player);
+      });
+    } else {
+      form.button("History", "textures/ui/icon_book_writable");
+      actions.push(() => {
+        command_history_menu(player);
+      });
+    }
+  }
+
+  // Chain Command
+  if (save_data[player_sd_index].chain_commands.length > 0 && (save_data[player_sd_index].ui_preferences == "chain" || save_data[player_sd_index].command_history.length == 0)) {
+    form.divider();
+    form.label("Chain Commands");
+
+    // Sortierte Kopie: pined zuerst, dann alphabetisch nach name
+    let sorted_chains = save_data[player_sd_index].chain_commands.slice().sort((a, b) => {
+      if (a.pined && !b.pined) return -1;
+      if (!a.pined && b.pined) return 1;
+      let nameA = (a.name || "").toLowerCase();
+      let nameB = (b.name || "").toLowerCase();
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      return 0;
+    });
+
+    // Anzeige-Anzahl: bis 3, aber sobald ein 4. existiert, nur noch 2 anzeigen
+    let displayCount;
+    if (sorted_chains.length <= 3) {
+      displayCount = Math.min(3, sorted_chains.length);
+    } else {
+      displayCount = 2;
+    }
+
+    for (let i = 0; i < displayCount; i++) {
+      let chain = sorted_chains[i];
+
+      const cmdName = chain.name || "Unnamed Chain";
+      const statusText = (chain.state.successful ? "§2Successful§r" : "§cFailed§r");
+      const relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - chain.state.unix);
+
+      form.button(`${cmdName}\n${chain.state.successful === null ? "" : `${statusText} | ${relativeTime} ago`}`);
+
+      // Closure damit jeder Button das richtige chain referenziert
+      actions.push(((ch) => {
+        return () => {
+          // Originalindex in der unveränderten Liste ermitteln
+          let originalIndex = save_data[player_sd_index].chain_commands.findIndex(c => c === ch);
+          if (chain.commands.length !== 0 && save_data[player_sd_index].quick_run) {
+            execute_chain(player, originalIndex);
+          } else {
+            chain_main(player, originalIndex);
+          }
+        };
+      })(chain));
+    }
+
+    // Wenn es mehr Einträge gibt als wir anzeigen, "Show more!" anbieten
+    if (sorted_chains.length > displayCount) {
+      form.button("Show more!");
+      actions.push(() => {
+        chain_overview(player);
+      });
+    }
+  }
+
+
+
   // History
-  if (save_data[player_sd_index].command_history.length !== 0) {
+  if (save_data[player_sd_index].command_history.length > 0 && (save_data[player_sd_index].ui_preferences == "history" || save_data[player_sd_index].chain_commands.length == 0)) {
     form.divider();
     form.label("History");
 
@@ -4233,8 +4310,6 @@ function command_history_menu(player) {
   form.title("Command History");
   form.body("Select a command!");
 
-
-
   // defensiv: ensure history exists
   const originalHistory = Array.isArray(saveData[playerIndex].command_history)
     ? saveData[playerIndex].command_history
@@ -4303,14 +4378,12 @@ function command_history_menu(player) {
     return { group, label };
   }
 
-  // 1. Durchlauf: Zähle Einträge pro Gruppe
+  // 1. Durchlauf: Zähle Einträge pro Gruppe (wird später pro Seite genutzt)
   const groupCounts = {};
   sortedHistory.forEach(entry => {
     const { group } = determineGroupLabel(entry.unix);
     groupCounts[group] = (groupCounts[group] || 0) + 1;
   });
-
-  let lastGroup = null;
 
   // Hilfsfunktion: finde originalen Index zuverlässig
   function findOriginalIndex(entry) {
@@ -4322,59 +4395,119 @@ function command_history_menu(player) {
     );
   }
 
-  // 2. Durchlauf: Erzeuge Form-Elemente; beim ersten Label-Anzeigen ggf. Anzahl anhängen
-  sortedHistory.forEach((entry, sortedIndex) => {
-    const diffSec = now - entry.unix;
+  const pages = [];
+  let currentPage = [];
 
-    const { group, label: baseLabel } = determineGroupLabel(entry.unix);
+  for (let i = 0; i < sortedHistory.length; i++) {
+    currentPage.push(sortedHistory[i]);
 
-    if (group !== lastGroup && saveData[0].utc) {
-      let labelToShow = baseLabel;
-      const count = groupCounts[group] || 0;
-      if (count >= 3) {
-        labelToShow = `${baseLabel} (${count})`;
+    if (currentPage.length >= 20) {
+      // move last 5 entries into a new page
+      const moved = currentPage.splice(currentPage.length - 5, 5);
+      // push a copy of the current (trimmed) page
+      pages.push([...currentPage]);
+      // start new currentPage with moved entries
+      currentPage = [...moved];
+    }
+  }
+  // push remaining
+  if (currentPage.length > 0) pages.push([...currentPage]);
+
+  // Fallback: wenn keine Einträge
+  if (pages.length === 0) {
+    form.label("No command history.");
+    form.divider();
+    form.button("");
+    form.show(player).then(response => {
+      main_menu(player);
+    });
+    return;
+  }
+
+  // Funktion, die eine bestimmte Seite anzeigt
+  function showPage(pageIndex) {
+    const page = pages[pageIndex];
+
+    // frisches Form für jede Seite
+    let f = new ActionFormData();
+    f.title("Command History (Page " + (pageIndex + 1) + "/" + pages.length + ")");
+    f.body("Select a command!");
+    const pageActions = [];
+
+    // gleiche Gruppierungslogik wie vorher, aber nur für diese Seite
+    let lastGroup = null;
+    page.forEach(entry => {
+      const diffSec = now - entry.unix;
+      const { group, label: baseLabel } = determineGroupLabel(entry.unix);
+
+      if (group !== lastGroup && saveData[0].utc) {
+        let labelToShow = baseLabel;
+        const count = groupCounts[group] || 0;
+        if (count >= 3) {
+          labelToShow = `${baseLabel} (${count})`;
+        }
+        f.label(labelToShow);
+        lastGroup = group;
       }
-      form.label(labelToShow);
-      lastGroup = group;
+
+      const cmdName = (entry.command || "").split(" ")[0].replace(/^\//, "").toLowerCase();
+      const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
+      const relativeTime = getRelativeTime(diffSec);
+
+      let matchingCommand = command_list.find(cmd =>
+        Array.isArray(cmd.aliases) &&
+        cmd.aliases.map(a => a.toLowerCase()).includes(cmdName)
+      );
+
+      let texture = matchingCommand && matchingCommand.textures
+        ? matchingCommand.textures
+        : "textures/ui/chat_send";
+
+      f.button(`/${cmdName}\n${statusText} | ${relativeTime} ago`, texture);
+
+      const originalIndex = findOriginalIndex(entry);
+      const indexToPass = originalIndex !== -1 ? originalIndex : sortedHistory.indexOf(entry);
+
+      pageActions.push(() => {
+        if (saveData[playerIndex].quick_run) {
+          execute_command(player, entry.command, player);
+        } else {
+          command_menu(player, entry.command, indexToPass);
+        }
+      });
+    });
+
+    f.divider();
+
+    // Navigation buttons
+    if (pageIndex > 0) {
+      f.button("Prev");
+      pageActions.push(() => showPage(pageIndex - 1));
     }
 
-    const cmdName = (entry.command || "").split(" ")[0].replace(/^\//, "").toLowerCase();
-    const statusText = entry.successful ? "§2ran§r" : "§cfailed§r";
-    const relativeTime = getRelativeTime(diffSec);
+    if (pageIndex < pages.length - 1) {
+      f.button("Next");
+      pageActions.push(() => showPage(pageIndex + 1));
+    }
 
-    let matchingCommand = command_list.find(cmd =>
-      Array.isArray(cmd.aliases) &&
-      cmd.aliases.map(a => a.toLowerCase()).includes(cmdName)
-    );
+    f.divider();
 
-    let texture = matchingCommand && matchingCommand.textures
-      ? matchingCommand.textures
-      : "textures/ui/chat_send";
+    // Always add main menu button at the end
+    f.button("");
+    pageActions.push(() => main_menu(player));
 
-    form.button(`/${cmdName}\n${statusText} | ${relativeTime} ago`, texture);
-
-    // Originalindex ermitteln, Fallback auf sortedIndex falls nicht gefunden
-    const originalIndex = findOriginalIndex(entry);
-    const indexToPass = originalIndex !== -1 ? originalIndex : sortedIndex;
-
-    actions.push(() => {
-      if (saveData[playerIndex].quick_run) {
-        execute_command(player, entry.command, player);
-      } else {
-        command_menu(player, entry.command, indexToPass);
-      }
+    // Show the form for this page
+    f.show(player).then(response => {
+      if (response.selection === undefined) return -1;
+      const action = pageActions[response.selection];
+      if (action) action();
     });
-  });
+  }
 
-  form.divider();
-  form.button("");
-  actions.push(() => main_menu(player));
-
-  form.show(player).then(response => {
-    if (response.selection === undefined) return -1;
-    if (actions[response.selection]) actions[response.selection]();
-  });
+  // Start on the first page
+  showPage(0);
 }
+
 
 function command_menu(player, command, history_index) {
   let save_data = load_save_data();
@@ -4400,7 +4533,9 @@ function command_menu(player, command, history_index) {
     form.label("Previous Result:");
     form.label(history_data.successful ? "§2Command executed successfully§r" : "§cCommand failed to execute§r");
     form.label(save_data[0].utc === undefined ? "§7§oTime: " + getRelativeTime(Math.floor(Date.now() / 1000) - history_data.unix, player) + " ago" : "§7§oDate: " + `${build_date.day}.${build_date.month}.${build_date.year}`);
-    form.toggle("Delete from history", {tooltip: "If enabled, this command will be removed from your history and won't run anymore."});
+    form.toggle("Delete from history", {tooltip: "If enabled, this command will be removed from your history after submitting the form."});
+  } else {
+    form.toggle("Pin to Main Menu", {tooltip: "If enabled, this command will be added to your main menu for quick access."});
   }
 
   form.show(player).then(response => {
@@ -4409,17 +4544,48 @@ function command_menu(player, command, history_index) {
     const cmdVal = response.formValues[0];
     const execByIdx = response.formValues[1];
     const deleteToggle = response.formValues[5]
+    const pinToggle = response.formValues[2];
 
 
     if (typeof(history_index) === "number" && deleteToggle) {
       // Entferne den Eintrag aus der command_history
       save_data[player_sd_index].command_history.splice(history_index, 1);
       update_save_data(save_data);
-
     }
 
     if (!cmdVal || deleteToggle) {
       return typeof(history_index) === "number" ? (save_data[player_sd_index].command_history.length > 3 ? command_history_menu(player) : main_menu(player)) : visual_command(player);
+    }
+
+    if (typeof(history_index) !== "number" && pinToggle) {
+      // Füge den Command der chain_commands Liste hinzu
+
+      chain_text_input(player, {
+        title: "New Pined Command",
+        prompt: "Enter a name for your pined command:",
+        placeholder: "My Pined Command",
+        defaultValue: cmdVal.length > 20 ? cmdVal.slice(0, 17) + "..." : cmdVal
+      }).then((response) => {
+        if (response.canceled || response.formValues[0] === "") {
+          return command_menu(player, command, history_index);
+        }
+
+        save_data[player_sd_index].chain_commands.push({
+          name: response.formValues[0],
+          commands: [cmdVal],
+          pined: true,
+          state: {
+            successful: null,
+            unix: null
+          }
+        });
+        save_data[player_sd_index].ui_preferences = "chain";
+        update_save_data(save_data);
+        main_menu(player);
+        return;
+
+      });
+      return;
     }
 
     let cmd = cmdVal.startsWith("/")
@@ -4533,10 +4699,6 @@ async function execute_command(source, cmd, target = "server") {
       existingCommand.successful = success;
       existingCommand.unix = Math.floor(Date.now() / 1000);
     } else {
-      if (save_data[player_sd_index].command_history.length >= 100) {
-        save_data[player_sd_index].command_history.shift();
-      }
-
       save_data[player_sd_index].command_history.push({
         command: cmd,
         successful: success,
@@ -4630,7 +4792,7 @@ function command_menu_result_e(player, message, command) {
 
 
 /*------------------------
- visual_command
+ new command
 -------------------------*/
 
 function visual_command(player) {
@@ -4720,7 +4882,7 @@ function visual_command(player) {
   actions.push(() => { command_menu(player); });
 
   form.button("Create a chain", "textures/items/chain");
-  actions.push(() => { command_menu(player); });
+  actions.push(() => { chain_new(player); });
 
   form.divider();
 
@@ -4766,7 +4928,7 @@ function visual_command_unsupported(player, allEntries) {
   // --- Formular befüllen ---
   if (allEntries.length > 0) {
     for (const e of allEntries) {
-      e.icon ? form.button(e.label, e.icon) : form.button(e.label);
+      e.icon ? form.button(e.label, e.icon) : form.button(e.label, "textures/ui/chat_send");
       actions.push(e.actionFn);
     }
     form.divider();
@@ -4788,6 +4950,435 @@ function visual_command_unsupported(player, allEntries) {
   });
 }
 
+/*------------------------
+ chain commands
+-------------------------*/
+
+async function chain_text_input(player, input) {
+  const form = new ModalFormData();
+  form.title(input.title);
+  form.textField(input.prompt, input.placeholder || "", {
+    defaultValue: input.defaultValue || "",
+    tooltip: input.tooltip || ""
+  });
+  return form.show(player);
+}
+
+async function chain_new(player) {
+  const save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  const response = await chain_text_input(player, {
+    title: "New Chain",
+    prompt: "Enter the name of the chain command:",
+    placeholder: "My Chain Command",
+    defaultValue: ""
+  });
+
+  if (response.canceled) {
+    return -1;
+  }
+
+  if (response.formValues[0] === "") {
+    return visual_command(player);
+  }
+
+  save_data[player_sd_index].chain_commands.push({
+    name: response.formValues[0],
+    state: {successful: null, message: null, unix: null},
+    commands: [],
+    pined: false
+  });
+  update_save_data(save_data);
+  return chain_edit(player, save_data[player_sd_index].chain_commands.length - 1, true);
+}
+
+function chain_overview(player) {
+  let form = new ActionFormData();
+  let actions = [];
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Chain Commands");
+  form.body("Select a chain");
+
+  let chain_commands = save_data[player_sd_index].chain_commands;
+
+  // Zwei Listen: pined und unpined
+  let pinedChains = chain_commands.filter(c => c.pined).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  let unpinedChains = chain_commands.filter(c => !c.pined).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+
+  pinedChains.forEach(chain => {
+    const cmdName = chain.name || "Unnamed Chain";
+    const statusText = (chain.state.successful ? "§2Successful§r" : "§cFailed§r");
+    const relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - chain.state.unix);
+
+    form.button(`${cmdName}\n${chain.state.successful === null ? "" : `${statusText} | ${relativeTime} ago`}`);
+    actions.push(() => {
+      let originalIndex = chain_commands.findIndex(c => c === chain);
+      if (chain.commands.length !== 0 && save_data[player_sd_index].quick_run) {
+        execute_chain(player, originalIndex);
+      } else {
+        chain_main(player, originalIndex);
+      }
+    });
+  });
+
+  if (pinedChains.length > 0 && unpinedChains.length > 0) {
+    form.divider();
+  }
+
+  unpinedChains.forEach(chain => {
+    const cmdName = chain.name || "Unnamed Chain";
+    const statusText = (chain.state.successful ? "§2Successful§r" : "§cFailed§r");
+    const relativeTime = getRelativeTime(Math.floor(Date.now() / 1000) - chain.state.unix);
+
+    form.button(`${cmdName}\n${chain.state.successful === null ? "" : `${statusText} | ${relativeTime} ago`}`);
+
+    actions.push(() => {
+      let originalIndex = chain_commands.findIndex(c => c === chain);
+
+      if (chain.commands.length !== 0 && save_data[player_sd_index].quick_run) {
+        execute_chain(player, originalIndex);
+      } else {
+        chain_main(player, originalIndex);
+      }
+    });
+  });
+
+  form.divider();
+
+  form.button("");
+  actions.push(() => {
+    main_menu(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined) return -1;
+    if (actions[response.selection]) actions[response.selection]();
+  });
+};
+
+function chain_main(player, chainIndex) {
+  let form = new ActionFormData();
+  let actions = [];
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let chain = save_data[player_sd_index].chain_commands[chainIndex];
+
+  form.title(`${chain.name}`);
+  form.body("Chain Command Overview");
+  form.divider();
+  form.label(`Commands in this chain: ${chain.commands.length}`);
+  form.label(`Last run: §7${chain.state.unix ? getRelativeTime(Math.floor(Date.now() / 1000) - chain.state.unix) + " ago" : "Never"}§r`);
+  if (chain.state.successful !== null) {
+    form.label(`Last result: ${chain.state.successful ? "§2Successful§r" : "§cFailed§r"}`);
+    form.label(`Last message: §7${chain.state.message || "No message"}§r`);
+  }
+
+  if (chain.commands.length !== 0) {
+    form.divider();
+    form.button("Run Chain", "textures/ui/icons/icon_trailer");
+    actions.push(() => {
+      execute_chain(player, chainIndex);
+    });
+  }
+
+  form.divider();
+
+  form.button("Edit Commands", "textures/ui/settings_pause_menu_icon");
+  actions.push(() => {
+    chain_edit(player, chainIndex);
+  });
+
+  form.button((save_data[player_sd_index].chain_commands[chainIndex].pined? "Unpin": "Pin") + " Chain", "textures/ui/icons/icon_trending");
+  actions.push(() => {
+    save_data[player_sd_index].chain_commands[chainIndex].pined = !save_data[player_sd_index].chain_commands[chainIndex].pined;
+    update_save_data(save_data);
+    chain_main(player, chainIndex);
+  });
+
+  form.button("Rename Chain", "textures/ui/editIcon");
+  actions.push(() => {
+    chain_text_input(player, {
+      title: "Rename Chain",
+      prompt: "Modify the name of the chain command:",
+      placeholder: "My Chain Command",
+      defaultValue: chain.name
+    }).then((response) => {
+      if (response.canceled || response.formValues[0] === "") {
+        return chain_edit(player, chainIndex);
+      }
+
+      save_data[player_sd_index].chain_commands[chainIndex].name = response.formValues[0];
+      update_save_data(save_data);
+      main_menu(player, chainIndex);
+    });
+  });
+
+  form.button("Delete Chain", "textures/ui/icon_trash");
+  actions.push(() => {
+    let confirmForm = new MessageFormData();
+    confirmForm.title("Delete Chain");
+    confirmForm.body("Are you sure you want to delete this chain command?");
+    confirmForm.button1("Yes, delete it");
+    confirmForm.button2("");
+
+    confirmForm.show(player).then((confirmResponse) => {
+      if (confirmResponse.selection === 0) {
+        save_data[player_sd_index].chain_commands.splice(chainIndex, 1);
+        update_save_data(save_data);
+        main_menu(player);
+      } else {
+        chain_main(player, chainIndex);
+      }
+    });
+  });
+
+  form.divider();
+
+  form.button("");
+  actions.push(() => {
+    main_menu(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined) {
+      return -1;
+    }
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+
+};
+
+function chain_edit(player, chainIndex, setup = false) {
+  let form = new ActionFormData();
+  let actions = [];
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let chain = save_data[player_sd_index].chain_commands[chainIndex];
+
+  form.title(`Commands in ${chain.name}`);
+  form.body("Manage the commands in this chain.");
+
+  if (chain.commands.length == 0) {
+    form.label("§7No commands added yet.§r");
+  }
+
+
+
+  chain.commands.forEach((cmd, idx) => {
+    // Extract base command (without '/' and arguments)
+    const baseCmd = cmd.startsWith("/") ? cmd.slice(1) : cmd;
+    const firstWord = baseCmd.split(" ")[0];
+
+    // Find the matching command in the command list
+    const matchingCommand = command_list.find(c =>
+      Array.isArray(c.aliases) &&
+      c.aliases.some(a => a.toLowerCase() === firstWord.toLowerCase())
+    );
+
+    // Determine the texture to use
+    const texture = matchingCommand?.textures ?? "textures/ui/chat_send";
+
+    // Add a button with the original command (keep arguments)
+    form.button(`${cmd.startsWith("/") ? "" : "/"}${cmd}`, texture);
+
+    // Store the action for this command
+    actions.push(() => chain_edit_command(player, chainIndex, idx));
+  });
+
+
+
+
+  form.divider();
+
+  form.button("Add Command", "textures/ui/color_plus");
+  actions.push(() => {
+    chain_text_input(player, {
+      title: "Add Command",
+      prompt: "Enter the command to add to the chain:",
+      placeholder: "e.g. /say Hello World",
+      defaultValue: ""
+    }).then((response) => {
+      if (response.canceled || response.formValues[0] === "") {
+        return chain_edit(player, chainIndex, setup);
+      }
+
+      save_data[player_sd_index].chain_commands[chainIndex].commands.push(response.formValues[0]);
+      update_save_data(save_data);
+      chain_edit(player, chainIndex, setup);
+    });
+  });
+
+  form.divider();
+
+  if (setup) {
+    if (chain.commands.length !== 0) {
+      form.button("Save", "textures/ui/check");
+      actions.push(() => {
+        main_menu(player);
+      });
+    }
+
+
+    form.button("");
+    actions.push(() => {
+      if (chain.commands.length == 0) {
+        save_data[player_sd_index].chain_commands.splice(chainIndex, 1);
+        update_save_data(save_data);
+        visual_command(player);
+      } else {
+        let confirmForm = new MessageFormData();
+        confirmForm.title("Delete Chain");
+        confirmForm.body("Are you sure you want to delete this chain command?");
+        confirmForm.button1("Yes, delete it");
+        confirmForm.button2("");
+
+        confirmForm.show(player).then((confirmResponse) => {
+          if (confirmResponse.selection === 0) {
+            save_data[player_sd_index].chain_commands.splice(chainIndex, 1);
+            update_save_data(save_data);
+            visual_command(player);
+          } else {
+            chain_edit(player, chainIndex, setup);
+          }
+        });
+      }
+    });
+  } else {
+    form.button("");
+    actions.push(() => {
+      chain_main(player, chainIndex);
+    });
+  }
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined) {
+      return -1;
+    }
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+};
+
+function chain_edit_command(player, chainIndex, commandIndex, setup) {
+  let form = new ActionFormData();
+  let actions = [];
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let chain = save_data[player_sd_index].chain_commands[chainIndex];
+  let command = chain.commands[commandIndex];
+
+  form.title("Edit "+(command.startsWith("/")? "" : "/") + command);
+  form.body("Select an action for this command.");
+
+  const swap = (i, j) => {
+    [chain.commands[i], chain.commands[j]] = [chain.commands[j], chain.commands[i]];
+    update_save_data(save_data);
+    chain_edit_command(player, chainIndex, commandIndex, setup);
+  };
+
+  if (commandIndex > 0) {
+    form.button("Move Up", "textures/ui/chevron_white_up");
+    actions.push(() => swap(commandIndex, commandIndex - 1));
+  }
+
+  if (commandIndex < chain.commands.length - 1) {
+    form.button("Move Down", "textures/ui/chevron_white_down");
+    actions.push(() => swap(commandIndex, commandIndex + 1));
+  }
+
+  if (chain.commands.length > 1) form.divider();
+
+
+
+
+  form.button("Edit Command", "textures/ui/editIcon");
+  actions.push(() => {
+    chain_text_input(player, {
+      title: "Edit Command",
+      prompt: "Modify the command:",
+      placeholder: "e.g. /say Hello World",
+      defaultValue: command
+    }).then((response) => {
+      if (response.canceled || response.formValues[0] === "") {
+        return chain_edit_command(player, chainIndex, commandIndex, setup);
+      }
+
+      save_data[player_sd_index].chain_commands[chainIndex].commands[commandIndex] = response.formValues[0];
+      update_save_data(save_data);
+      chain_edit(player, chainIndex, setup);
+    });
+  });
+
+  form.button("Delete Command", "textures/ui/icon_trash");
+  actions.push(() => {
+    save_data[player_sd_index].chain_commands[chainIndex].commands.splice(commandIndex, 1);
+    update_save_data(save_data);
+    chain_edit(player, chainIndex, setup);
+  });
+
+  form.divider();
+  form.button("");
+  actions.push(() => {
+    chain_edit(player, chainIndex, setup);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined) {
+      return -1;
+    }
+    if (actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+};
+
+function execute_chain(player, chainIndex) {
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let chain = save_data[player_sd_index].chain_commands[chainIndex];
+
+  (async () => {
+    for (const cmd of chain.commands) {
+      try {
+        let result = player.runCommand(cmd);
+        if (!result) {
+          save_data[player_sd_index].chain_commands[chainIndex].state = {
+            successful: false,
+            message: `Command failed: ${cmd}`,
+            unix: Math.floor(Date.now() / 1000)
+          };
+          update_save_data(save_data);
+          player.sendMessage(`§cChain execution stopped due to failure.§r`);
+          return;
+        }
+      } catch (e) {
+        save_data[player_sd_index].chain_commands[chainIndex].state = {
+          successful: false,
+          message: `Error executing command: ${e.message || e}`,
+          unix : Math.floor(Date.now() / 1000)
+        };
+        update_save_data(save_data);
+        player.sendMessage(`§cChain execution stopped due to error.§r`);
+        return;
+      }
+    }
+
+    save_data[player_sd_index].chain_commands[chainIndex].state = {
+      successful: true,
+      message: NaN,
+      unix: Math.floor(Date.now() / 1000)
+    };
+    update_save_data(save_data);
+    player.sendMessage(`${save_data[player_sd_index].chain_commands[chainIndex].name} Chain executed successfully.§r`);
+  })();
+}
 
 /*------------------------
  visual_command: Gamerule
@@ -5383,6 +5974,19 @@ function settings_main(player) {
     update_save_data(save_data);
     settings_main(player);
   });
+
+  if (save_data[player_sd_index].chain_commands.length > 0 && save_data[player_sd_index].command_history.length > 0) {
+    form.button("Main Menu preference\n§9" + (save_data[player_sd_index].ui_preferences == "history" ? "History" : "Chain"), "textures/ui/icon_map");
+    actions.push(() => {
+      if (save_data[player_sd_index].ui_preferences !== "history") {
+        save_data[player_sd_index].ui_preferences = "history";
+      } else {
+        save_data[player_sd_index].ui_preferences = "chain";
+      }
+      update_save_data(save_data);
+      settings_main(player);
+    });
+  }
 
   // Button 3: Gestures
   if (system_privileges == 2) {
