@@ -5,14 +5,13 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command&Achievement",
   version: "v.5.0.0",
-  build: "B030",
+  build: "B031",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1764881799,
+  unix: 1765036275,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
-
       "Introduction of Command Chains",
       "New name & branding: Command&Achievement",
       "Redesigned user interface",
@@ -23,10 +22,26 @@ const version_info = {
       "Commands can now removed from the history",
       "Added informations to the command history",
       "Added pages to the command history",
+      "Recommendations can now be displayed in the main menu",
+      "The effect command gets now recommended more often",
     ],
     // bug_fixes
     bug_fixes: [
+      "Fixed /xp & /experience command",
     ]
+
+    /* TODO:
+    - clear recommendations: if the inventory is full
+    - teleport recommendation: if the player is stuck in a block or in multiplayer if the player is far away from others
+    - weather recommendation: if the weather is not clear
+    - camara recommendation: if the camera is not in first person
+    - inputpermission recommendation: if the permission is not set to default
+    - give recommendation: if the player's inventory is clear
+    - ride recommendation: if a rideable entity is nearby
+    - courent gamemode is visible in gamemode visual command
+    - Pages are not working in the command history if utc is not set
+    */
+
   }
 }
 
@@ -564,7 +579,7 @@ const command_list = [
     aliases: ["effect"],
     textures: "textures/ui/strength_effect",
     description: "Add/remove potion effects",
-    recommended: (player) => player.getEffects().length > 0,
+    recommended: (player) => player.getEffects().length > 0 || !(world.getTimeOfDay() < 12000) || player.isInWater || player.isFalling,
     vc_hiperlink: (player) => {
       return () => {
         if (anyplayerHasEffect()) visual_command_effect_select(player);
@@ -602,8 +617,6 @@ const command_list = [
     description: "Summons an entity",
     textures: "textures/items/spawn_eggs/spawn_egg_creeper",
     vc_hiperlink: (player) => all_EntityTypes(player),
-    visible: (player) => true,
-    recommended: (player) => false,
     syntaxes: [
       { type: "literal", value: "/summon" },
       { type: "entityType", name: "entityType" },
@@ -691,7 +704,6 @@ const command_list = [
     aliases: ["weather"],
     textures: "textures/ui/cloud_only_storage",
     vc_hiperlink: (player) => visual_command_weather(player),
-    visible: (player) => true,
     recommended: (player) => false, //world.getDimension("overworld").getWeather() !== WeatherType.Clear,
     description: "Set or query the weather",
     syntaxes: [
@@ -1080,7 +1092,7 @@ const command_list = [
     name: "event",
     textures: "textures/ui/raid_omen_effect",
     aliases: ["event"],
-    description: "Trigger a game event (Bedrock)",
+    description: "Trigger a game event",
     syntaxes: [
       { type: "literal", value: "/event" },
       { type: "string", name: "eventName" },
@@ -1089,20 +1101,14 @@ const command_list = [
   },
 
   {
-    name: "experience",
-    aliases: ["experience", "xp"],
+    name: "xp",
+    aliases: ["xp"],
     textures: "textures/items/experience_bottle",
-    description: "Grant or set experience points/levels",
+    description: "Grant experience points",
     syntaxes: [
-      { type: "literal", value: "/experience" },
-      { type: "playerselector", name: "player" },
+      { type: "literal", value: "/xp" },
       { type: "int", name: "amount" },
-      {
-        type: "enum",
-        name: "type",
-        optional: true,
-        value: [{ value: "points" }, { value: "levels" }]
-      }
+      { type: "playerselector", name: "player", optional: true }
     ]
   },
 
@@ -1259,6 +1265,11 @@ const command_list = [
     aliases: ["gamemode", "gm"],
     textures: "textures/ui/permissions_op_crown",
     description: "Set a player's game mode",
+    vc_hiperlink: (player) => visual_command_gamemode(player),
+    recommended: (player) => {
+      const gm = player.getGameMode();
+      return gm !== "Survival" && gm !== "Creative";
+    },
     syntaxes: [
       { type: "literal", value: "/gamemode" },
       {
@@ -1399,7 +1410,7 @@ const command_list = [
     name: "music",
     aliases: ["music"],
     textures: "textures/ui/sound_glyph_color_2x",
-    description: "Play / queue / stop music tracks (Bedrock)",
+    description: "Play / queue / stop music tracks",
     syntaxes: [
       { type: "literal", value: "/music" },
 
@@ -2398,7 +2409,7 @@ const command_list = [
     name: "script",
     aliases: ["script"],
     textures: "textures/ui/ui_debug_glyph_color",
-    description: "Debugging, profiling and diagnostics controls for the scripting system (Bedrock)",
+    description: "Debugging, profiling and diagnostics controls for the scripting system",
     syntaxes: [
       { type: "literal", value: "/script" },
 
@@ -2874,8 +2885,9 @@ function create_player_save_data(playerId, playerName) {
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
       quick_run: false,
+      recommendations: true,
       chain_commands: [],
-      ui_preferences: "history",
+      ui_preferences: "chain",
       allowed_commands: [],
   });
 
@@ -3289,70 +3301,120 @@ function humanizeId(id) {
   return words.join(" ");
 }
 
-function areEnchantmentsIncompatible(item, e1, e2) {
-  if (!item) return false;
-  try {
-    // Clone the item so we don't change the real one
-    const copy = item.clone();
-    const enchComp = copy.getComponent("minecraft:enchantable");
-    if (!enchComp) return false;
+function isCommandAvailable(player, cmd) {
+  // Save-Daten laden
+  const save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(e => e.id === player.id);
 
-    // erst e1 hinzufügen (Level 1 zum Test)
-    try {
-      enchComp.addEnchantment({ type: e1, level: 1 });
-    } catch (errAdd) {
-      // wenn addEnchantment für e1 schon fehlschlägt: dann behandeln wir es als inkompatibel
-      // (sollte aber nicht passieren, weil e1 aus kompatiblen Enchants stammt)
-      return true;
-    }
+  const playerAllowed = save_data[player_sd_index].allowed_commands || [];
 
-    // jetzt prüfen ob e2 noch geht
-    try {
-      const ok = enchComp.canAddEnchantment({ type: e2, level: 1 });
-      return !ok;
-    } catch (err) {
-      // Wenn canAddEnchantment eine Exception wirft, behandeln wir das als inkompatibel
-      return true;
-    }
-  } catch (err) {
-    // Bei unerwarteten Fehlern: konservativ annehmen, dass inkompatibel
-    return true;
-  }
+  // Befehl extrahieren
+  const firstToken = (cmd || "").trim().split(/\s+/)[0] || "";
+  const commandName = firstToken.replace(/^\//, "").toLowerCase();
+  if (!commandName) return false;
+
+  // Befehl in Liste finden
+  if (!Array.isArray(command_list)) return false;
+  const cmdIndex = command_list.findIndex(c =>
+    c && c.name && c.name.toLowerCase() === commandName
+  );
+  if (cmdIndex === -1) return false;
+
+  // Permission-Level 2 = immer erlaubt (Admin)
+  if (player.playerPermissionLevel === 2) return true;
+
+  // Spieler muss explizit Berechtigung haben
+  return playerAllowed.includes(cmdIndex);
 }
 
-function buildEnchantmentCategories(item, compatibleEnchants) {
-  const n = compatibleEnchants.length;
-  const adj = Array.from({ length: n }, () => []);
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (areEnchantmentsIncompatible(item, compatibleEnchants[i], compatibleEnchants[j])) {
-        adj[i].push(j);
-        adj[j].push(i);
-      }
-    }
+function generate_command_lists(player, use_recomandations = true) {
+  const recommendedEntries = [];
+  const optimizedEntries = [];
+  const unoptimizedEntries = [];
+  const allEntries = [];
+
+  function addTo(arr, label, icon, actionFn) {
+    arr.push({ label, icon, actionFn });
   }
 
-  // connected components
-  const seen = new Array(n).fill(false);
-  const comps = [];
-  for (let i = 0; i < n; i++) {
-    if (seen[i]) continue;
-    const stack = [i];
-    const comp = [];
-    seen[i] = true;
-    while (stack.length) {
-      const u = stack.pop();
-      comp.push(compatibleEnchants[u]);
-      for (const v of adj[u]) {
-        if (!seen[v]) {
-          seen[v] = true;
-          stack.push(v);
-        }
-      }
+  for (const cmd of command_list) {
+    let visible = true;
+
+    if (typeof cmd.visible === "function") {
+      visible = !!cmd.visible(player);
+    } else if (typeof cmd.visible === "boolean") {
+      visible = cmd.visible;
     }
-    comps.push(comp);
+
+    if (isCommandAvailable(player, `/${cmd.name}`) === false) {
+      visible = false;
+    }
+
+    if (!visible) continue;
+
+    // recommended Flag ermitteln
+    let recommendedFlag = false;
+    if (typeof cmd.recommended === "function") {
+      try {
+        recommendedFlag = !!cmd.recommended(player);
+      } catch (err) {
+        recommendedFlag = false;
+        console.error("recommended() error for command", cmd.name, err);
+      }
+    } else {
+      recommendedFlag = !!cmd.recommended;
+    }
+
+    // action function
+    const actionFn = () => {
+      if (typeof cmd.vc_hiperlink === "function") {
+        const inner = cmd.vc_hiperlink(player);
+        if (typeof inner === "function") inner();
+      } else {
+        command_menu(player, `/${cmd.name}`);
+      }
+    };
+
+    // --- Kategorisierung ---
+    if (recommendedFlag && use_recomandations) {
+      addTo(allEntries, cmd.name, cmd.textures, actionFn);
+      addTo(recommendedEntries, cmd.name, cmd.textures, actionFn);
+      continue;
+    }
+
+    if (typeof cmd.vc_hiperlink === "function") {
+      addTo(allEntries, cmd.name, cmd.textures, actionFn);
+      addTo(optimizedEntries, cmd.name, cmd.textures, actionFn);
+      continue;
+    }
+
+    addTo(allEntries, cmd.name, cmd.textures, actionFn);
+    addTo(unoptimizedEntries, cmd.name, cmd.textures, actionFn);
   }
-  return comps;
+
+  // Sortieren optional
+  const sorter = (a, b) => a.label.localeCompare(b.label);
+  recommendedEntries.sort(sorter);
+  optimizedEntries.sort(sorter);
+  unoptimizedEntries.sort(sorter);
+  allEntries.sort(sorter);
+
+  return {
+    recommendedEntries,
+    optimizedEntries,
+    unoptimizedEntries,
+    allEntries
+  };
+}
+
+async function chain_text_input(player, input) {
+  const form = new ModalFormData();
+  form.title(input.title);
+  form.textField(input.prompt, input.placeholder || "", {
+    defaultValue: input.defaultValue || "",
+    tooltip: input.tooltip || ""
+  });
+  return form.show(player);
 }
 
 /*------------------------
@@ -3738,7 +3800,6 @@ function correctCommand(inputCommand) {
   return result;
 }
 
-
 /*------------------------
  Time
 -------------------------*/
@@ -4120,6 +4181,73 @@ function getCompatibleEnchantmentTypes(item) {
   return compatible;
 }
 
+function areEnchantmentsIncompatible(item, e1, e2) {
+  if (!item) return false;
+  try {
+    // Clone the item so we don't change the real one
+    const copy = item.clone();
+    const enchComp = copy.getComponent("minecraft:enchantable");
+    if (!enchComp) return false;
+
+    // erst e1 hinzufügen (Level 1 zum Test)
+    try {
+      enchComp.addEnchantment({ type: e1, level: 1 });
+    } catch (errAdd) {
+      // wenn addEnchantment für e1 schon fehlschlägt: dann behandeln wir es als inkompatibel
+      // (sollte aber nicht passieren, weil e1 aus kompatiblen Enchants stammt)
+      return true;
+    }
+
+    // jetzt prüfen ob e2 noch geht
+    try {
+      const ok = enchComp.canAddEnchantment({ type: e2, level: 1 });
+      return !ok;
+    } catch (err) {
+      // Wenn canAddEnchantment eine Exception wirft, behandeln wir das als inkompatibel
+      return true;
+    }
+  } catch (err) {
+    // Bei unerwarteten Fehlern: konservativ annehmen, dass inkompatibel
+    return true;
+  }
+}
+
+function buildEnchantmentCategories(item, compatibleEnchants) {
+  const n = compatibleEnchants.length;
+  const adj = Array.from({ length: n }, () => []);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (areEnchantmentsIncompatible(item, compatibleEnchants[i], compatibleEnchants[j])) {
+        adj[i].push(j);
+        adj[j].push(i);
+      }
+    }
+  }
+
+  // connected components
+  const seen = new Array(n).fill(false);
+  const comps = [];
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    const stack = [i];
+    const comp = [];
+    seen[i] = true;
+    while (stack.length) {
+      const u = stack.pop();
+      comp.push(compatibleEnchants[u]);
+      for (const v of adj[u]) {
+        if (!seen[v]) {
+          seen[v] = true;
+          stack.push(v);
+        }
+      }
+    }
+    comps.push(comp);
+  }
+  return comps;
+}
+
+
 
 /*------------------------
  Menus
@@ -4135,28 +4263,43 @@ function main_menu(player) {
   form.title("Main menu");
   form.body("Select an option!");
 
-  // Run a Command
+  const { recommendedEntries } = generate_command_lists(player);
+
+  const recommendVisible = (recommendedEntries.length > 0 && save_data[player_sd_index].recommendations);
+  const hasChains = save_data[player_sd_index].chain_commands.length > 0;
+  const hasHistory = save_data[player_sd_index].command_history.length > 0;
+
+  /*------------------------
+    Main panel
+  -------------------------*/
+
   form.button("Run a command", "textures/ui/color_plus");
   actions.push(() => {
     visual_command(player);
   });
 
-  if (save_data[player_sd_index].chain_commands.length > 0 && save_data[player_sd_index].command_history.length > 0) {
-    if (save_data[player_sd_index].ui_preferences !== "chain") {
-      form.button("Chain Commands", "textures/items/chain");
-      actions.push(() => {
-        chain_overview(player);
-      });
-    } else {
-      form.button("History", "textures/ui/icon_book_writable");
-      actions.push(() => {
-        command_history_menu(player);
-      });
-    }
+
+  if (hasChains && (recommendVisible || save_data[player_sd_index].ui_preferences == "history")) {
+    form.button("Chain Commands", "textures/items/chain");
+    actions.push(() => {
+      chain_overview(player);
+    });
   }
 
-  // Chain Command
-  if (save_data[player_sd_index].chain_commands.length > 0 && (save_data[player_sd_index].ui_preferences == "chain" || save_data[player_sd_index].command_history.length == 0)) {
+  if (hasHistory &&  (recommendVisible || save_data[player_sd_index].ui_preferences == "chain")) {
+    form.button("History", "textures/ui/icon_book_writable");
+    actions.push(() => {
+      command_history_menu(player);
+    });
+  }
+
+  /*------------------------
+    Preview panel
+  -------------------------*/
+
+
+  // Chain Commands panel
+  if (!recommendVisible && hasChains && (save_data[player_sd_index].ui_preferences == "chain" || save_data[player_sd_index].command_history.length == 0)) {
     form.divider();
     form.label("Chain Commands");
 
@@ -4211,10 +4354,8 @@ function main_menu(player) {
     }
   }
 
-
-
-  // History
-  if (save_data[player_sd_index].command_history.length > 0 && (save_data[player_sd_index].ui_preferences == "history" || save_data[player_sd_index].chain_commands.length == 0)) {
+  // History panel
+  if (!recommendVisible && hasHistory && (save_data[player_sd_index].ui_preferences == "history" || save_data[player_sd_index].chain_commands.length == 0)) {
     form.divider();
     form.label("History");
 
@@ -4264,6 +4405,37 @@ function main_menu(player) {
     }
   }
 
+  // Recommended panel
+  if (recommendVisible) {
+    form.divider();
+    form.label("Recommended");
+
+    let displayCount = 3;
+    if (recommendedEntries.length >= 4) {
+      displayCount = 2;
+    }
+
+    const entriesToShow = recommendedEntries.slice(0, displayCount);
+
+    for (const e of entriesToShow) {
+      e.icon ? form.button(e.label, e.icon) : form.button(e.label);
+      actions.push(e.actionFn);
+    }
+
+    // Falls wir nicht alle anzeigen → "Show more!"
+    if (recommendedEntries.length >= displayCount) {
+      form.button("Show more!");
+      actions.push(() => {
+        visual_command(player); // oder die passende Funktion
+      });
+    }
+  }
+
+
+
+  /*------------------------
+    Settings panel
+  -------------------------*/
 
   form.divider()
   form.label("Other");
@@ -4301,7 +4473,6 @@ function main_menu(player) {
 
 function command_history_menu(player) {
   let form = new ActionFormData();
-  let actions = [];
 
   let saveData = load_save_data();
   let playerIndex = saveData.findIndex(entry => entry.id === player.id);
@@ -4413,24 +4584,13 @@ function command_history_menu(player) {
   // push remaining
   if (currentPage.length > 0) pages.push([...currentPage]);
 
-  // Fallback: wenn keine Einträge
-  if (pages.length === 0) {
-    form.label("No command history.");
-    form.divider();
-    form.button("");
-    form.show(player).then(response => {
-      main_menu(player);
-    });
-    return;
-  }
-
   // Funktion, die eine bestimmte Seite anzeigt
   function showPage(pageIndex) {
     const page = pages[pageIndex];
 
     // frisches Form für jede Seite
     let f = new ActionFormData();
-    f.title("Command History (Page " + (pageIndex + 1) + "/" + pages.length + ")");
+    f.title("Command History"+ (pages.length >= 2? " Page " + (pageIndex + 1) + "/" + pages.length + ")" : ""));
     f.body("Select a command!");
     const pageActions = [];
 
@@ -4490,7 +4650,9 @@ function command_history_menu(player) {
       pageActions.push(() => showPage(pageIndex + 1));
     }
 
-    f.divider();
+    if (pageIndex > 0 || pageIndex < pages.length - 1) {
+      f.divider();
+    }
 
     // Always add main menu button at the end
     f.button("");
@@ -4613,24 +4775,8 @@ async function execute_command(source, cmd, target = "server") {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === source.id);
 
-  const firstToken = (cmd || "").trim().split(/\s+/)[0] || "";
-  const commandName = firstToken.replace(/^\//, "").toLowerCase();
 
-  const playerAllowed = Array.isArray(save_data[player_sd_index].allowed_commands)
-  ? save_data[player_sd_index].allowed_commands
-  : [];
-
-  // Prüfe, ob der Command in command_list enthalten ist und finde seinen Index
-  let cmdIndexInList = -1;
-  if (Array.isArray(command_list)) {
-    cmdIndexInList = command_list.findIndex(c => {
-      if (!c || !c.name) return false;
-      return c.name.toLowerCase() === commandName;
-    });
-  }
-
-
-  if (cmdIndexInList !== -1 && !playerAllowed.includes(cmdIndexInList) && source.playerPermissionLevel !== 2) {
+  if (isCommandAvailable(source, cmd) === false) {
     save_data[player_sd_index].command_history.push({
       command: cmd,
       successful: false,
@@ -4640,7 +4786,7 @@ async function execute_command(source, cmd, target = "server") {
 
     const errMsg = `This Command is restriced by your Admin.`;
     source.sendMessage("§c" + errMsg);
-    command_menu_result_e(source, errMsg, cmd);
+    command_menu_result_e(source, errMsg, cmd, false);
     return false;
   }
 
@@ -4735,10 +4881,10 @@ async function execute_command(source, cmd, target = "server") {
   }
 }
 
-function command_menu_result_e(player, message, command) {
+function command_menu_result_e(player, message, command, show_suggestion = true) {
   let form = new ActionFormData();
   let actions = [];
-  let suggestion = correctCommand(command)
+  let suggestion = show_suggestion? correctCommand(command) : null;
 
   form.title("Command Result");
 
@@ -4801,71 +4947,27 @@ function visual_command(player) {
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-  // Kategorien-Container
-  const recommendedEntries = [];
-  const optimizedEntries = [];
-  const allEntries = [];
-
-  // Hilfsfunktion zum Registrieren eines Buttons (wird noch nicht ins Form eingefügt)
-  function addTo(arr, label, icon, actionFn) {
-    arr.push({ label, icon, actionFn });
-  }
-
   form.title("New Command");
-  form.body("Select a command!");
+  form.body("General");
 
-  for (const command_entry of command_list) {
-    let visible = true;
-    if (typeof command_entry.visible === "function") {
-      visible = !!command_entry.visible(player);
-    }
+  // --- General ---
+  form.button("Typing", "textures/ui/chat_send");
+  actions.push(() => { command_menu(player); });
 
-    if (!visible) continue;
+  form.button("Create a chain", "textures/items/chain");
+  actions.push(() => { chain_new(player); });
 
-    // bestimme recommended Flag (kann Funktion oder bool sein)
-    let recommendedFlag = false;
-    if (typeof command_entry.recommended === "function") {
-      try {
-        recommendedFlag = !!command_entry.recommended(player);
-      } catch (err) {
-        recommendedFlag = false;
-        console.error("recommended() error for command", command_entry.name, err);
-      }
-    } else {
-      recommendedFlag = !!command_entry.recommended;
-    }
+  form.divider();
 
-    // action-Funktion (sichere Wrapper, damit this/args richtig sind)
-    const actionFn = () => {
-      if (typeof command_entry.vc_hiperlink === "function") {
-        const inner = command_entry.vc_hiperlink(player);
-        if (typeof inner === "function") inner();  // <- WICHTIG
-      } else {
-        command_menu(player, `/${command_entry.name}`);
-      }
-    };
+  // --- Listen durch Helper erzeugen ---
+  const {
+    recommendedEntries,
+    optimizedEntries,
+    unoptimizedEntries,
+    allEntries
+  } = generate_command_lists(player, !save_data[player_sd_index].recommendations);
 
-
-    // Kategorisierung mit Priorität: Recommended > Optimized (vc_hiperlink) > All Commands
-    if (recommendedFlag) {
-      addTo(recommendedEntries, command_entry.name, command_entry.textures, actionFn);
-      continue; // in Recommended einsortiert, ansonsten keine Duplikate
-    }
-
-    if (typeof command_entry.vc_hiperlink === "function") {
-      addTo(optimizedEntries, command_entry.name, command_entry.textures, actionFn);
-      continue;
-    }
-
-    addTo(allEntries, command_entry.name, command_entry.textures, actionFn);
-  }
-
-  // Sortieren (optional alphabetisch)
-  recommendedEntries.sort((a, b) => a.label.localeCompare(b.label));
-  optimizedEntries.sort((a, b) => a.label.localeCompare(b.label));
-  allEntries.sort((a, b) => a.label.localeCompare(b.label));
-
-  // --- Formular befüllen ---
+  // --- Recommended ---
   if (recommendedEntries.length > 0) {
     form.label("Recommended");
     for (const e of recommendedEntries) {
@@ -4875,17 +4977,7 @@ function visual_command(player) {
     form.divider();
   }
 
-  // --- General --- (separat)
-  form.label("General");
-
-  form.button("Typing", "textures/ui/chat_send");
-  actions.push(() => { command_menu(player); });
-
-  form.button("Create a chain", "textures/items/chain");
-  actions.push(() => { chain_new(player); });
-
-  form.divider();
-
+  // --- Optimized ---
   if (optimizedEntries.length > 0) {
     form.label("Optimized");
     for (const e of optimizedEntries) {
@@ -4895,24 +4987,21 @@ function visual_command(player) {
     form.divider();
   }
 
+  // --- Show all commands ---
   if (allEntries.length > 0) {
     form.button("Show all commands", "textures/ui/more-dots");
     actions.push(() => visual_command_unsupported(player, allEntries));
   }
 
-  // Zurück-Button
+  // --- Back button ---
   form.button("");
   actions.push(() => main_menu(player));
 
-  // Anzeige und Auswertung
-  form.show(player).then((response) => {
-    if (response.selection === undefined) {
-      return -1;
-    }
+  // --- Show Form ---
+  form.show(player).then(response => {
+    if (response.selection === undefined) return;
     const idx = response.selection;
-    if (actions[idx]) {
-      actions[idx]();
-    }
+    if (actions[idx]) actions[idx]();
   });
 }
 
@@ -4953,16 +5042,6 @@ function visual_command_unsupported(player, allEntries) {
 /*------------------------
  chain commands
 -------------------------*/
-
-async function chain_text_input(player, input) {
-  const form = new ModalFormData();
-  form.title(input.title);
-  form.textField(input.prompt, input.placeholder || "", {
-    defaultValue: input.defaultValue || "",
-    tooltip: input.tooltip || ""
-  });
-  return form.show(player);
-}
 
 async function chain_new(player) {
   const save_data = load_save_data();
@@ -5347,7 +5426,14 @@ function execute_chain(player, chainIndex) {
   (async () => {
     for (const cmd of chain.commands) {
       try {
-        let result = player.runCommand(cmd);
+        let result;
+
+        if (isCommandAvailable(player, cmd) === false) {
+          throw new Error(`${cmd} is restriced by your Admin`);
+        } else {
+          result = player.runCommand(cmd);
+        }
+
         if (!result) {
           save_data[player_sd_index].chain_commands[chainIndex].state = {
             successful: false,
@@ -5913,6 +5999,94 @@ function visual_command_time(player) {
 }
 
 /*------------------------
+ visual_command: gamemode
+-------------------------*/
+
+function visual_command_gamemode(player) {
+  const form = new ActionFormData();
+  const actions = [];
+  const saveData = load_save_data();
+  const idx = saveData.findIndex(e => e.id === player.id);
+
+  form.title("Visual commands - gamemode");
+  form.body("Select a game mode:");
+
+  // Optionen (jetzt mit `pin`-Feld)
+  const options = [
+    { label: "Survival",  icon: "textures/items/iron_sword",   cmd: "/gamemode survival",  pin: false },
+    { label: "Creative",  icon: "textures/items/minecart_command_block",   cmd: "/gamemode creative",  pin: false },
+    { label: "Adventure", icon: "textures/items/map_empty", cmd: "/gamemode adventure", pin: false },
+    { label: "Spectator", icon: "textures/items/ender_eye", cmd: "/gamemode spectator", pin: false }
+  ];
+
+  // Pins nach aktuellem Gamemode setzen
+  const current = (typeof player.getGameMode === 'function') ? player.getGameMode() : (player.gameMode || null);
+  switch (current) {
+    case "Creative":
+      // Creative -> Survival & Spectator anpinnen
+      options.forEach(o => { if (o.label === "Survival" || o.label === "Spectator") o.pin = true; });
+      break;
+    case "Spectator":
+      // Spectator -> Creative anpinnen
+      options.forEach(o => { if (o.label === "Creative") o.pin = true; });
+      break;
+    case "Survival":
+      // Survival -> Creative anpinnen
+      options.forEach(o => { if (o.label === "Creative") o.pin = true; });
+      break;
+    case "Adventure":
+      // Adventure -> Survival anpinnen
+      options.forEach(o => { if (o.label === "Survival") o.pin = true; });
+      break;
+    default:
+      // kein bekannter Gamemode -> keine Pins
+      break;
+  }
+
+  // Alphabetisch nach label sortieren
+  options.sort((a, b) => a.label.localeCompare(b.label));
+
+  const pinned = options.filter(o => o.pin);
+  const others = options.filter(o => !o.pin);
+
+  // Angepinnte Items zuerst
+  if (pinned.length > 0) {
+    pinned.forEach(opt => {
+      form.button(opt.label, opt.icon);
+      actions.push(() => saveData[idx].quick_run
+        ? execute_command(player, opt.cmd, player)
+        : command_menu(player, opt.cmd)
+      );
+    });
+
+    // Divider zwischen Pins und Rest falls Rest existiert
+    if (others.length > 0) form.divider();
+  }
+
+  // Restliche Items
+  others.forEach(opt => {
+    form.button(opt.label, opt.icon);
+    actions.push(() => saveData[idx].quick_run
+      ? execute_command(player, opt.cmd, player)
+      : command_menu(player, opt.cmd)
+    );
+  });
+
+  // Zurück-Button
+  form.divider();
+  form.button("");
+  actions.push(() => visual_command(player));
+
+  // Formular anzeigen und ausgewählte Aktion ausführen
+  form.show(player).then(resp => {
+    if (resp.selection != null && actions[resp.selection]) {
+      actions[resp.selection]();
+    }
+  });
+}
+
+
+/*------------------------
  visual_command: Weather
 -------------------------*/
 
@@ -5963,7 +6137,7 @@ function settings_main(player) {
   form.title("Settings");
   form.body("Your self");
 
-  // Button 2: Quick run
+  // Quick run
   form.button("Quick run\n" + (save_data[player_sd_index].quick_run ? "§aon" : "§coff"), (save_data[player_sd_index].quick_run ? "textures/ui/sprint_pressed" : "textures/ui/sprint"));
   actions.push(() => {
     if (!save_data[player_sd_index].quick_run) {
@@ -5975,8 +6149,31 @@ function settings_main(player) {
     settings_main(player);
   });
 
+  // Gestures
+  if (system_privileges == 2) {
+    form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+    actions.push(() => {
+      settings_gestures(player)
+    });
+  }
+
+  form.divider()
+
+  form.label("Main Menu");
+
+  form.button("Recommendations\n" + (save_data[player_sd_index].recommendations ? "§aon" : "§coff"), "textures/ui/realms_particles");
+  actions.push(() => {
+    if (!save_data[player_sd_index].recommendations) {
+      save_data[player_sd_index].recommendations = true;
+    } else {
+      save_data[player_sd_index].recommendations = false;
+    }
+    update_save_data(save_data);
+    settings_main(player);
+  });
+
   if (save_data[player_sd_index].chain_commands.length > 0 && save_data[player_sd_index].command_history.length > 0) {
-    form.button("Main Menu preference\n§9" + (save_data[player_sd_index].ui_preferences == "history" ? "History" : "Chain"), "textures/ui/icon_map");
+    form.button("Preference\n§9" + (save_data[player_sd_index].ui_preferences == "history" ? "History" : "Chain"), "textures/ui/icon_map");
     actions.push(() => {
       if (save_data[player_sd_index].ui_preferences !== "history") {
         save_data[player_sd_index].ui_preferences = "history";
@@ -5988,17 +6185,10 @@ function settings_main(player) {
     });
   }
 
-  // Button 3: Gestures
-  if (system_privileges == 2) {
-    form.button("Gestures", "textures/ui/sidebar_icons/emotes");
-    actions.push(() => {
-      settings_gestures(player)
-    });
-  }
 
   form.divider()
 
-  // Button 1: Permission
+  // BPermission
   if (player.playerPermissionLevel === 2) {
     form.label("Multiplayer");
 
