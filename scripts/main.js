@@ -5,14 +5,14 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command&Achievement",
   version: "v.5.0.0",
-  build: "B031",
-  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1765036275,
+  build: "B032",
+  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1765135543,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
-      "Introduction of Command Chains",
+      "Introduction of Chains Commands",
       "New name & branding: Command&Achievement",
       "Redesigned user interface",
     ],
@@ -23,30 +23,17 @@ const version_info = {
       "Added informations to the command history",
       "Added pages to the command history",
       "Recommendations can now be displayed in the main menu",
-      "The effect command gets now recommended more often",
+      "More commands can be recommended",
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed /xp & /experience command",
+      "Fixed the \"/xp\" & \"/experience\" command",
     ]
-
-    /* TODO:
-    - clear recommendations: if the inventory is full
-    - teleport recommendation: if the player is stuck in a block or in multiplayer if the player is far away from others
-    - weather recommendation: if the weather is not clear
-    - camara recommendation: if the camera is not in first person
-    - inputpermission recommendation: if the permission is not set to default
-    - give recommendation: if the player's inventory is clear
-    - ride recommendation: if a rideable entity is nearby
-    - courent gamemode is visible in gamemode visual command
-    - Pages are not working in the command history if utc is not set
-    */
 
   }
 }
 
 console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
-
 
 /*------------------------
   Internal lists
@@ -598,6 +585,7 @@ const command_list = [
 
   {
     name: "give",
+    recommended: (player) => getStackCount(player) < 5,
     aliases: ["give"],
     description: "Gives an item to a player",
     textures: "textures/items/diamond_sword",
@@ -627,6 +615,7 @@ const command_list = [
 
   {
     name: "teleport",
+    recommended: (player) => isFarthestPlayerFarAway(player, 300),
     aliases: ["teleport", "tp"],
     description: "Teleport entity or player",
     textures: "textures/ui/dressing_room_skins",
@@ -976,6 +965,7 @@ const command_list = [
 
   {
     name: "clear",
+    recommended: (player) => getStackCount(player) > 10,
     aliases: ["clear"],
     textures: "textures/ui/icon_none",
     description: "Clear items from a player's inventory",
@@ -1266,6 +1256,7 @@ const command_list = [
     textures: "textures/ui/permissions_op_crown",
     description: "Set a player's game mode",
     vc_hiperlink: (player) => visual_command_gamemode(player),
+    visible: (player) => world.isHardcore === false,
     recommended: (player) => {
       const gm = player.getGameMode();
       return gm !== "Survival" && gm !== "Creative";
@@ -1346,6 +1337,7 @@ const command_list = [
     aliases: ["inputpermission"],
     textures: "textures/ui/controller_glyph_color_switch",
     description: "Grant or revoke input permissions",
+    recommended: (player) => [...Array(13).keys()].some(x => !player.inputPermissions.isPermissionCategoryEnabled(x)),
     syntaxes: [
       { type: "literal", value: "/inputpermission" },
       {
@@ -1591,6 +1583,7 @@ const command_list = [
   {
     name: "ride",
     aliases: ["ride"],
+    recommended: (player) => isRideableEntityNearby(player, 5),
     textures: "textures/items/saddle",
     description: "Manage entity riding",
     syntaxes: [
@@ -2885,6 +2878,7 @@ function create_player_save_data(playerId, playerName) {
       gesture: { emote: false, sneak: true, nod: true, stick: true },
       command_history: [],
       quick_run: false,
+      visual_command: true,
       recommendations: true,
       chain_commands: [],
       ui_preferences: "chain",
@@ -3333,6 +3327,9 @@ function generate_command_lists(player, use_recomandations = true) {
   const unoptimizedEntries = [];
   const allEntries = [];
 
+  let save_data = load_save_data();
+  const player_sd_index = save_data.findIndex(e => e.id === player.id);
+
   function addTo(arr, label, icon, actionFn) {
     arr.push({ label, icon, actionFn });
   }
@@ -3367,7 +3364,7 @@ function generate_command_lists(player, use_recomandations = true) {
 
     // action function
     const actionFn = () => {
-      if (typeof cmd.vc_hiperlink === "function") {
+      if (typeof cmd.vc_hiperlink === "function" && save_data[player_sd_index].visual_command) {
         const inner = cmd.vc_hiperlink(player);
         if (typeof inner === "function") inner();
       } else {
@@ -3382,7 +3379,7 @@ function generate_command_lists(player, use_recomandations = true) {
       continue;
     }
 
-    if (typeof cmd.vc_hiperlink === "function") {
+    if (typeof cmd.vc_hiperlink === "function" && save_data[player_sd_index].visual_command) {
       addTo(allEntries, cmd.name, cmd.textures, actionFn);
       addTo(optimizedEntries, cmd.name, cmd.textures, actionFn);
       continue;
@@ -3415,6 +3412,67 @@ async function chain_text_input(player, input) {
     tooltip: input.tooltip || ""
   });
   return form.show(player);
+}
+
+/*------------------------
+  Custom Command Recommendation Helpers
+-------------------------*/
+
+function isFarthestPlayerFarAway(player, minDistance) {
+    const players = world.getAllPlayers();
+
+    let farthestPlayer;
+    let maxDistance = -1;
+
+    for (const p of players) {
+        if (p.id === player.id) continue; // Sich selbst überspringen
+
+        const dx = p.location.x - player.location.x;
+        const dy = p.location.y - player.location.y;
+        const dz = p.location.z - player.location.z;
+        const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            farthestPlayer = p;
+        }
+    }
+
+    // Falls keine weiteren Spieler existieren
+    if (!farthestPlayer) return false;
+
+    return maxDistance > minDistance;
+}
+
+function isRideableEntityNearby(player, radius) {
+    const entities = world.getDimension("overworld").getEntities({
+        location: player.location,
+        maxDistance: radius
+    });
+
+    for (const entity of entities) {
+      if (entity.id === player.id) continue; // Sich selbst überspringen
+
+      // Prüft, ob das Entity das Rideable-Component besitzt
+      if (entity.hasComponent("minecraft:rideable")) {
+          return true;
+      }
+    }
+
+    return false;
+}
+
+function getStackCount(player) {
+    const inventory = player.getComponent("minecraft:inventory").container;
+    let count = 0;
+
+    for (let i = 0; i < inventory.size; i++) {
+        if (inventory.getItem(i)) {
+            count++;
+        }
+    }
+
+    return count;
 }
 
 /*------------------------
@@ -4279,14 +4337,14 @@ function main_menu(player) {
   });
 
 
-  if (hasChains && (recommendVisible || save_data[player_sd_index].ui_preferences == "history")) {
+  if (hasChains && (recommendVisible || (save_data[player_sd_index].ui_preferences == "history" && hasHistory))) {
     form.button("Chain Commands", "textures/items/chain");
     actions.push(() => {
       chain_overview(player);
     });
   }
 
-  if (hasHistory &&  (recommendVisible || save_data[player_sd_index].ui_preferences == "chain")) {
+  if (hasHistory && (recommendVisible || (save_data[player_sd_index].ui_preferences == "chain" && hasChains))) {
     form.button("History", "textures/ui/icon_book_writable");
     actions.push(() => {
       command_history_menu(player);
@@ -4472,29 +4530,21 @@ function main_menu(player) {
 -------------------------*/
 
 function command_history_menu(player) {
-  let form = new ActionFormData();
 
   let saveData = load_save_data();
   let playerIndex = saveData.findIndex(entry => entry.id === player.id);
-  if (playerIndex === -1) return; // kein Spieler gefunden
-
-  form.title("Command History");
-  form.body("Select a command!");
 
   // defensiv: ensure history exists
-  const originalHistory = Array.isArray(saveData[playerIndex].command_history)
-    ? saveData[playerIndex].command_history
-    : [];
-
-  if (!saveData[0].utc && originalHistory.length > 9 && player.playerPermissionLevel === 2) form.label("§7Confusing? Set your time zone in the settings; that will help, I promise!§r");
+  const originalHistory = saveData[playerIndex].command_history
 
   // Sortierte Kopie (originalHistory bleibt unverändert)
   let sortedHistory = [...originalHistory].sort((a, b) => b.unix - a.unix);
 
   const now = Math.floor(Date.now() / 1000);
-  const utcOffsetMinutes = Math.round((saveData[0]?.utc || 0) * 60); // default 0 wenn nicht gesetzt
+  const utcSet = Boolean(saveData[0]?.utc);
+  const utcOffsetMinutes = utcSet ? Math.round((saveData[0].utc || 0) * 60) : 0; // default 0 wenn nicht gesetzt
 
-  // Lokalzeit / Mitternacht-Grenzen
+  // Lokalzeit / Mitternacht-Grenzen (wenn utc nicht gesetzt, verwenden wir einfach lokale timestamps ohne Offset-Anpassung)
   const nowLocal = new Date((now + utcOffsetMinutes * 60) * 1000);
   const midLocal = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
   const todayMid = Math.floor(midLocal.getTime() / 1000);
@@ -4507,7 +4557,16 @@ function command_history_menu(player) {
     "July","August","September","October","November","December"
   ];
 
+  // determineGroupLabel akzeptiert jetzt, ob utc gesetzt ist (utcSet).
+  // Falls utc nicht gesetzt ist, liefern wir eine neutrale Gruppe ohne Label.
   function determineGroupLabel(entryUnix) {
+    if (!utcSet) {
+      // Wenn keine UTC-Einstellung vorhanden: keine zeit-basierten Kategorien anzeigen.
+      // Wir geben eine neutrale Gruppe zurück, damit Zählungen/Logik weiterhin funktionieren,
+      // aber das Label bleibt leer und wird nicht angezeigt.
+      return { group: "ungrouped", label: "" };
+    }
+
     const diffSec = now - entryUnix;
     const localUnix = entryUnix + utcOffsetMinutes * 60;
     const date = new Date(localUnix * 1000);
@@ -4590,9 +4649,12 @@ function command_history_menu(player) {
 
     // frisches Form für jede Seite
     let f = new ActionFormData();
-    f.title("Command History"+ (pages.length >= 2? " Page " + (pageIndex + 1) + "/" + pages.length + ")" : ""));
+    f.title("Command History" + (pages.length >= 2 ? " Page " + (pageIndex + 1) + "/" + pages.length : ""));
     f.body("Select a command!");
     const pageActions = [];
+
+    if (!utcSet && originalHistory.length > 9 && player.playerPermissionLevel === 2 && pageIndex === 0)
+      f.label("§7Confusing? Set your time zone in the settings!");
 
     // gleiche Gruppierungslogik wie vorher, aber nur für diese Seite
     let lastGroup = null;
@@ -4600,7 +4662,8 @@ function command_history_menu(player) {
       const diffSec = now - entry.unix;
       const { group, label: baseLabel } = determineGroupLabel(entry.unix);
 
-      if (group !== lastGroup && saveData[0].utc) {
+      // Labels nur anzeigen, wenn utc gesetzt ist UND es ein nicht-leeres Label gibt
+      if (group !== lastGroup && utcSet && baseLabel) {
         let labelToShow = baseLabel;
         const count = groupCounts[group] || 0;
         if (count >= 3) {
@@ -4669,6 +4732,7 @@ function command_history_menu(player) {
   // Start on the first page
   showPage(0);
 }
+
 
 
 function command_menu(player, command, history_index) {
@@ -6144,6 +6208,17 @@ function settings_main(player) {
       save_data[player_sd_index].quick_run = true;
     } else {
       save_data[player_sd_index].quick_run = false;
+    }
+    update_save_data(save_data);
+    settings_main(player);
+  });
+
+  form.button("Visual Commands\n" + (save_data[player_sd_index].visual_command ? "§aon" : "§coff"), "textures/ui/controller_glyph_color_switch");
+  actions.push(() => {
+    if (!save_data[player_sd_index].visual_command) {
+      save_data[player_sd_index].visual_command = true;
+    } else {
+      save_data[player_sd_index].visual_command = false;
     }
     update_save_data(save_data);
     settings_main(player);
