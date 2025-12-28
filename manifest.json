@@ -4,7 +4,7 @@
       "description": "Normally, you can't execute commands in without losing achievements. That's where this add-on comes in, allowing you to execute commands comfortably via a small detour!",
       "name": "Command&Achievement",
       "uuid": "a9bdf889-7080-419c-b23c-adfc8704c4c1",
-      "version": [ 5, 0, 0],
+      "version": [ 5, 1, 0],
       "min_engine_version": [1, 21, 90]
   },
   "modules": [

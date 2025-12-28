@@ -4,30 +4,24 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 
 const version_info = {
   name: "Command&Achievement",
-  version: "v.5.0.0",
-  build: "B032",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1765135543,
+  version: "v.5.1.0",
+  build: "B033",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1766955544,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
     new_features: [
-      "Introduction of Chains Commands",
-      "New name & branding: Command&Achievement",
-      "Redesigned user interface",
     ],
     // general_changes
     general_changes: [
-      "Removed Hardcore mode dependency",
-      "Commands can now removed from the history",
-      "Added informations to the command history",
-      "Added pages to the command history",
-      "Recommendations can now be displayed in the main menu",
-      "More commands can be recommended",
+      "Added the aliases for Default to /gamemode"
     ],
     // bug_fixes
     bug_fixes: [
-      "Fixed the \"/xp\" & \"/experience\" command",
+      "Recommended Commands will now stack corectly",
+      "Fixed & Readded aliases: gm & experience",
+      "Fixed a bug where in some cases, the Visual Command of effect could not be opened."
     ]
 
   }
@@ -323,10 +317,9 @@ const timezone_list = [
   }
 ];
 
-
 const entity_blocklist = [
   {
-    id: "agent" // WTF
+    id: "agent"
   },
   {
     id: "area_effect_cloud" // WTF
@@ -568,11 +561,10 @@ const command_list = [
     description: "Add/remove potion effects",
     recommended: (player) => player.getEffects().length > 0 || !(world.getTimeOfDay() < 12000) || player.isInWater || player.isFalling,
     vc_hiperlink: (player) => {
-      return () => {
-        if (anyplayerHasEffect()) visual_command_effect_select(player);
-        else visual_command_effect_add(player);
-      };
+      if (anyplayerHasEffect()) visual_command_effect_select(player);
+      else visual_command_effect_add(player);
     },
+
     syntaxes: [
       { type: "literal", value: "/effect" },
       { type: "entityselector", name: "target" },
@@ -1092,7 +1084,7 @@ const command_list = [
 
   {
     name: "xp",
-    aliases: ["xp"],
+    aliases: ["xp", "experience"],
     textures: "textures/items/experience_bottle",
     description: "Grant experience points",
     syntaxes: [
@@ -1266,7 +1258,7 @@ const command_list = [
       {
         type: "enum",
         name: "mode",
-        value: [{ value: "survival" }, { value: "creative" }, { value: "adventure" }, { value: "spectator" }, { value: "s" }, { value: "c" }]
+        value: [{ value: "survival" }, { value: "creative" }, { value: "adventure" }, { value: "default" }, { value: "spectator" }, { value: "s" }, { value: "a" }, { value: "d" }, { value: "c" }]
       },
       { type: "playerselector", name: "target", optional: true }
     ]
@@ -2337,7 +2329,7 @@ const command_list = [
     name: "place",
     aliases: ["place"],
     textures: "textures/ui/icons/icon_new",
-    description: "Place an item or block at a position (utility command)",
+    description: "Place an item or block at a position",
     syntaxes: [
       { type: "literal", value: "/place" },
       {
@@ -2460,7 +2452,7 @@ const command_list = [
   {
     name: "scriptevent",
     aliases: ["scriptevent"],
-    description: "Trigger a script event (Bedrock scripting)",
+    description: "Trigger a script event",
     syntaxes: [
       { type: "literal", value: "/scriptevent" },
       { type: "string", name: "eventName" },
@@ -2499,7 +2491,7 @@ const command_list = [
   {
     name: "wsserver",
     aliases: ["wsserver"],
-    description: "Start/stop/query the WebSocket server (dev/admin)",
+    description: "Start/stop/query the WebSocket server",
     textures: "textures/ui/ui_debug_glyph_color",
     syntaxes: [
       { type: "literal", value: "/wsserver" },
@@ -2725,6 +2717,25 @@ function registerAllCommands(init) {
           system.run(() => {
             const player = origin.sourceEntity;
 
+            function resolveAliasToLiteral(alias, command_list) {
+              for (const cmd of command_list) {
+                if (!Array.isArray(cmd.aliases)) continue;
+
+                if (cmd.aliases.includes(alias)) {
+                  const literalSyntax = cmd.syntaxes?.find(s => s.type === "literal");
+                  if (!literalSyntax?.value) break;
+
+                  // "/" entfernen, damit später kein "//" entsteht
+                  return literalSyntax.value.startsWith("/")
+                    ? literalSyntax.value.slice(1)
+                    : literalSyntax.value;
+                }
+              }
+
+              // Fallback: Alias unverändert lassen
+              return alias;
+            }
+
             function formatArg(v) {
               if (v === null) return "null";
               if (v === undefined) return "undefined";
@@ -2770,9 +2781,13 @@ function registerAllCommands(init) {
                 message: "Only players can use this command"
             };
 
+            // Alias auflösen
+            const resolvedAlias = resolveAliasToLiteral(alias, command_list);
+
             // kompletten Command bauen
             const argString = args.map(formatArg).join(" ").trim();
-            const fullCommand = `/${alias}${argString ? " " + argString : ""}`;
+            const fullCommand = `/${resolvedAlias}${argString ? " " + argString : ""}`;
+
             execute_command(player, fullCommand, player);
           });
         });
@@ -3312,10 +3327,11 @@ function isCommandAvailable(player, cmd) {
   const cmdIndex = command_list.findIndex(c =>
     c && c.name && c.name.toLowerCase() === commandName
   );
-  if (cmdIndex === -1) return false;
 
   // Permission-Level 2 = immer erlaubt (Admin)
   if (player.playerPermissionLevel === 2) return true;
+
+  if (cmdIndex === -1) return false;
 
   // Spieler muss explizit Berechtigung haben
   return playerAllowed.includes(cmdIndex);
@@ -3851,9 +3867,11 @@ function correctCommand(inputCommand) {
 
   // vc_hiperlink hinzufügen, wenn vorhanden
   const result = { fix_available: fixAvailable, command: fixedCommand };
+
   if (command.vc_hiperlink !== undefined) {
     result.vc_hiperlink = command.vc_hiperlink;
   }
+
 
   return result;
 }
@@ -4481,7 +4499,7 @@ function main_menu(player) {
     }
 
     // Falls wir nicht alle anzeigen → "Show more!"
-    if (recommendedEntries.length >= displayCount) {
+    if (recommendedEntries.length > displayCount) {
       form.button("Show more!");
       actions.push(() => {
         visual_command(player); // oder die passende Funktion
@@ -4974,6 +4992,7 @@ function command_menu_result_e(player, message, command, show_suggestion = true)
     form.button("Visual command");
     actions.push(() => {
       suggestion.vc_hiperlink(player);
+      return -1; // Otherwise, the menu opens twice. I don't know
     });
     form.divider();
   }
