@@ -5,9 +5,9 @@ import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/serv
 const version_info = {
   name: "Command&Achievement",
   version: "v.5.1.0",
-  build: "B033",
+  build: "B034",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1766955544,
+  unix: 1768650746,
   uuid: "a9bdf889-7080-419c-b23c-adfc8704c4c1",
   changelog: {
     // new_features
@@ -15,13 +15,19 @@ const version_info = {
     ],
     // general_changes
     general_changes: [
-      "Added the aliases for Default to /gamemode"
+      "Added the aliases for Default to /gamemode",
+      "Added /agent",
+      "The time zone can now be set from the History menu.",
+      "Commands are now labeled alphabetically in the Visual Command Overview.",
+      "Show more now works more reliabel."
     ],
     // bug_fixes
     bug_fixes: [
       "Recommended Commands will now stack corectly",
       "Fixed & Readded aliases: gm & experience",
-      "Fixed a bug where in some cases, the Visual Command of effect could not be opened."
+      "Fixed a bug where in some cases, the Visual Command of effect could not be opened.",
+      "Resolved a bug causing hidden Visual Commands to show up as suggestions after an invalid comment input.",
+      "Fixed a bug crash when the save data exceeded a certain size."
     ]
 
   }
@@ -521,6 +527,164 @@ const gamerules = [
 
 const command_list = [
   // types: literal, string, int, float, bool, location, blocktype, itemtype, entityType, entityselector, playerselector, effectType, enchantType, weathertype, json, enum
+
+  {
+    name: "agent",
+    aliases: ["agent"],
+    description: "Control and manage your Agent",
+    textures: "textures/items/spawn_eggs/spawn_egg_agent",
+    syntaxes: [
+      { type: "literal", value: "/agent" },
+
+      {
+        type: "enum",
+        name: "action",
+        value: [
+          {
+            value: "create"
+          },
+
+          {
+            value: "move",
+            next: [
+              {
+                type: "enum",
+                name: "direction",
+                value: [
+                  { value: "forward" },
+                  { value: "back" },
+                  { value: "left" },
+                  { value: "right" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "turn",
+            next: [
+              {
+                type: "enum",
+                name: "turnDirection",
+                value: [
+                  { value: "left" },
+                  { value: "right" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "attack",
+            next: [
+              {
+                type: "enum",
+                name: "direction",
+                value: [
+                  { value: "forward" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "destroy",
+            next: [
+              {
+                type: "enum",
+                name: "direction",
+                value: [
+                  { value: "forward" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "place",
+            next: [
+              { type: "int", name: "slotNum" },
+              {
+                type: "enum",
+                name: "direction",
+                value: [
+                  { value: "forward" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "collect",
+            next: [
+              { type: "itemtype", name: "item" }
+            ]
+          },
+
+          {
+            value: "drop",
+            next: [
+              { type: "int", name: "slotNum" },
+              { type: "int", name: "quantity", optional: true },
+              {
+                type: "enum",
+                name: "direction",
+                optional: true,
+                value: [
+                  { value: "forward" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "transfer",
+            next: [
+              { type: "int", name: "srcSlotNum" },
+              { type: "int", name: "quantity" },
+              { type: "int", name: "dstSlotNum" }
+            ]
+          },
+
+          {
+            value: "inspect",
+            next: [
+              {
+                type: "enum",
+                name: "direction",
+                value: [
+                  { value: "forward" },
+                  { value: "up" },
+                  { value: "down" }
+                ]
+              }
+            ]
+          },
+
+          {
+            value: "getposition"
+          },
+
+          {
+            value: "tp",
+            next: [
+              { type: "location", name: "coordinates" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
 
   {
     name: "fill",
@@ -1230,7 +1394,6 @@ const command_list = [
     ]
   },
 
-
   {
     name: "function",
     aliases: ["function"],
@@ -1322,7 +1485,6 @@ const command_list = [
       }
     ]
   },
-
 
   {
     name: "inputpermission",
@@ -2514,9 +2676,10 @@ let block_command_list = [
   rating = 1 - behaves strangely
   rating = 2 - bricks the world
   */
-  {command_prefix: "gamemode", rating: 1},
-  {command_prefix: "gamemode spectator", rating: 2},
-  {command_prefix: "kill", rating: 2},
+  {command_prefix: "gamemode", rating: 1, relevent: (world) => world.isHardcore},
+  {command_prefix: "gamemode spectator", rating: 2, relevent: (world) => world.isHardcore},
+  {command_prefix: "kill", rating: 2, relevent: (world) => world.isHardcore},
+  {command_prefix: "agent create", rating: 2, relevent: (world) => true},
 ]
 
 /*------------------------
@@ -2856,21 +3019,212 @@ system.run(() => {
 })
 
 
-// Load & Save Save data
-function load_save_data() {
-    let rawData = world.getDynamicProperty("com2hard:save_data");
+const BASE_KEY = "com2hard:save_data";
+const META_KEY = BASE_KEY + "_meta";
+const MAX_BYTES = 32767;
 
-    if (!rawData) {
-        return;
+
+function uint8ToBase64(u8) {
+    // chunked conversion to avoid apply() argument length limits
+    const CHUNK = 0x8000;
+    let parts = [];
+    for (let i = 0; i < u8.length; i += CHUNK) {
+        parts.push(String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + CHUNK))));
     }
-
-    return JSON.parse(rawData);
+    return btoa(parts.join(''));
 }
 
+function base64ToUint8(b64) {
+    const bin = atob(b64);
+    const len = bin.length;
+    const u8 = new Uint8Array(len);
+    for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+}
+
+function get_save_meta() {
+    const metaRaw = world.getDynamicProperty(META_KEY);
+    if (!metaRaw) return null;
+    try {
+        return JSON.parse(metaRaw);
+    } catch (e) {
+        console.warn("Ungültiges META JSON:", e);
+        return null;
+    }
+}
+
+function clear_chunk_range(from, to) {
+    if (typeof from !== "number" || typeof to !== "number" || from >= to) return;
+    for (let i = from; i < to; i++) {
+        try {
+            world.setDynamicProperty(`${BASE_KEY}_${i}`, null);
+        } catch (e) {
+            // Falls die API das Nicht-Existieren anders handhabt, wenigstens keinen Fehler werfen
+            console.warn(`Fehler beim Löschen von ${BASE_KEY}_${i}:`, e);
+        }
+    }
+}
+
+function delete_save_data() {
+    try {
+        const oldMeta = get_save_meta();
+        if (oldMeta && typeof oldMeta.chunks === "number" && oldMeta.chunks > 0) {
+            clear_chunk_range(0, oldMeta.chunks);
+        }
+        world.setDynamicProperty(BASE_KEY, null);
+        world.setDynamicProperty(META_KEY, null);
+    } catch (err) {
+        console.error("Fehler beim vollständigen Löschen der Save-Daten:", err);
+        throw err;
+    }
+}
+
+function load_save_data() {
+    try {
+        const metaRaw = world.getDynamicProperty(META_KEY);
+        // Falls Meta vorhanden: chunked storage
+        if (metaRaw) {
+            let meta;
+            try { meta = JSON.parse(metaRaw); } catch (e) {
+                console.warn("Invalid meta JSON for save_data; falling back to single property.", e);
+                // Fallback zu altem Einzel-Property (siehe Migration weiter unten)
+                const raw = world.getDynamicProperty(BASE_KEY);
+                if (!raw) return;
+                // Versuche Migration: in neuen Chunk-Standard konvertieren
+                try {
+                    world.setDynamicProperty(`${BASE_KEY}_0`, raw);
+                    world.setDynamicProperty(META_KEY, JSON.stringify({ chunks: 1, encoding: "utf16" }));
+                    world.setDynamicProperty(BASE_KEY, null);
+                } catch (mErr) {
+                    console.warn("Migration to chunked storage failed:", mErr);
+                }
+                return JSON.parse(raw);
+            }
+
+            const chunks = [];
+            if (meta.encoding === "base64") {
+                // join base64 chunks -> bytes -> decode utf-8 -> parse JSON
+                const byteArrays = [];
+                for (let i = 0; i < meta.chunks; i++) {
+                    const partB64 = world.getDynamicProperty(`${BASE_KEY}_${i}`) || "";
+                    if (!partB64) throw new Error(`Missing chunk ${i}`);
+                    byteArrays.push(base64ToUint8(partB64));
+                }
+                // concat bytes
+                let totalLen = byteArrays.reduce((s, a) => s + a.length, 0);
+                const all = new Uint8Array(totalLen);
+                let offset = 0;
+                for (let a of byteArrays) {
+                    all.set(a, offset);
+                    offset += a.length;
+                }
+                const decoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
+                const jsonStr = decoder ? decoder.decode(all) : (function() {
+                    // Fallback: decode assuming UTF-8 manually (less efficient)
+                    let s = "";
+                    for (let i = 0; i < all.length; i++) s += String.fromCharCode(all[i]);
+                    try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+                })();
+                return JSON.parse(jsonStr);
+            } else {
+                // encoding 'utf16' (simple substring chunks)
+                for (let i = 0; i < meta.chunks; i++) {
+                    chunks.push(world.getDynamicProperty(`${BASE_KEY}_${i}`) || "");
+                }
+                const raw = chunks.join("");
+                return JSON.parse(raw);
+            }
+        } else {
+            // kein Meta -> altes Einzel-Property verwenden (oder Migration durchführen)
+            const raw = world.getDynamicProperty(BASE_KEY);
+            if (!raw) return;
+
+            // MIGRATION: convert old single property into new chunked standard
+            try {
+                // Speichere als single utf16-chunk unter BASE_KEY_0 und setze META_KEY
+                world.setDynamicProperty(`${BASE_KEY}_0`, raw);
+                world.setDynamicProperty(META_KEY, JSON.stringify({ chunks: 1, encoding: "utf16" }));
+                // Setze alten Single-Property-Eintrag auf null (wie gewünscht)
+                world.setDynamicProperty(BASE_KEY, null);
+            } catch (mErr) {
+                console.warn("Migration to chunked storage failed:", mErr);
+            }
+
+            return JSON.parse(raw);
+        }
+    } catch (err) {
+        console.error("Fehler beim Laden der Save-Daten:", err);
+        throw err;
+    }
+}
 
 function update_save_data(input) {
-    world.setDynamicProperty("com2hard:save_data", JSON.stringify(input))
-};
+    try {
+        // vorhandenes META lesen, damit wir nachher überzählige chunks löschen können
+        const oldMetaRaw = world.getDynamicProperty(META_KEY);
+        let oldMeta = null;
+        try { oldMeta = oldMetaRaw ? JSON.parse(oldMetaRaw) : null; } catch (e) { oldMeta = null; }
+
+        // Falls noch der alte Einzel-Property-Standard vorhanden ist, vorab migrieren
+        const existingBaseRaw = world.getDynamicProperty(BASE_KEY);
+        if (existingBaseRaw) {
+            try {
+                // Migriere vorhandene Einzel-Property zu neuem Chunk-Format (utf16 chunk)
+                world.setDynamicProperty(`${BASE_KEY}_0`, existingBaseRaw);
+                world.setDynamicProperty(META_KEY, JSON.stringify({ chunks: 1, encoding: "utf16" }));
+                // setze alten BASE_KEY auf null (wie gewünscht)
+                world.setDynamicProperty(BASE_KEY, null);
+                // Aktualisiere oldMeta damit alte chunk-Lösch-Logik später korrekt arbeitet
+                oldMeta = { chunks: 1, encoding: "utf16" };
+            } catch (mErr) {
+                console.warn("Migration of existing single BASE_KEY to chunked failed:", mErr);
+            }
+        }
+
+        const json = JSON.stringify(input);
+
+        // WICHTIG: Neu: immer Chunk-Storage verwenden (auch wenn in einen Chunk passend).
+        // Wenn TextEncoder verfügbar: sichere Byteorientierte Variante (UTF-8 + base64 chunks)
+        if (typeof TextEncoder !== "undefined" && typeof btoa !== "undefined" && typeof atob !== "undefined") {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(json);
+            // Always use chunked storage; compute chunkCount even for small payloads
+            const chunkCount = Math.ceil(bytes.length / MAX_BYTES) || 1;
+            for (let i = 0; i < chunkCount; i++) {
+                const slice = bytes.subarray(i * MAX_BYTES, (i + 1) * MAX_BYTES);
+                const partB64 = uint8ToBase64(slice);
+                world.setDynamicProperty(`${BASE_KEY}_${i}`, partB64);
+            }
+            world.setDynamicProperty(META_KEY, JSON.stringify({ chunks: chunkCount, encoding: "base64" }));
+            // setze single BASE_KEY auf null (so loader bevorzugt meta und alter Standard ist entfernt)
+            world.setDynamicProperty(BASE_KEY, null);
+
+            // Alte, jetzt ungenutzte Chunks (falls vorher mehr waren) löschen
+            if (oldMeta && typeof oldMeta.chunks === "number" && oldMeta.chunks > chunkCount) {
+                clear_chunk_range(chunkCount, oldMeta.chunks);
+            }
+            return;
+        }
+
+        // Fallback: reiner String-Chunking (arbeitet auf JS-String-Länge, nicht genau Bytes!)
+        // Always use chunked storage (utf16)
+        const chunkCount = Math.ceil(json.length / MAX_BYTES) || 1;
+        for (let i = 0; i < chunkCount; i++) {
+            const part = json.slice(i * MAX_BYTES, (i + 1) * MAX_BYTES);
+            world.setDynamicProperty(`${BASE_KEY}_${i}`, part);
+        }
+        world.setDynamicProperty(META_KEY, JSON.stringify({ chunks: chunkCount, encoding: "utf16" }));
+        world.setDynamicProperty(BASE_KEY, null);
+
+        // Alte, jetzt ungenutzte Chunks löschen
+        if (oldMeta && typeof oldMeta.chunks === "number" && oldMeta.chunks > chunkCount) {
+            clear_chunk_range(chunkCount, oldMeta.chunks);
+        }
+    } catch (err) {
+        console.error("Fehler beim Speichern der Save-Daten:", err);
+        throw err;
+    }
+}
 
 function delete_player_save_data(player) {
   let save_data = load_save_data();
@@ -3870,6 +4224,7 @@ function correctCommand(inputCommand) {
 
   if (command.vc_hiperlink !== undefined) {
     result.vc_hiperlink = command.vc_hiperlink;
+    result.visible = command.visible;
   }
 
 
@@ -4343,7 +4698,8 @@ function main_menu(player) {
 
   const recommendVisible = (recommendedEntries.length > 0 && save_data[player_sd_index].recommendations);
   const hasChains = save_data[player_sd_index].chain_commands.length > 0;
-  const hasHistory = save_data[player_sd_index].command_history.length > 0;
+  const hasHistory = save_data[player_sd_index].command_history.some(entry => !entry.hidden);
+
 
   /*------------------------
     Main panel
@@ -4436,8 +4792,9 @@ function main_menu(player) {
     form.label("History");
 
     // Originalreferenz für spätere Index-Suche
-    let originalHistory = save_data[player_sd_index].command_history;
-    let length = save_data[player_sd_index].command_history.length
+    const originalHistory = save_data[player_sd_index].command_history.filter(entry => !entry.hidden);
+    const length = originalHistory.length;
+
 
     // Sortiert & kürzt auf 2 Einträge
     let sortedHistory = [...originalHistory]
@@ -4445,7 +4802,6 @@ function main_menu(player) {
       .slice(0, length > 3 ? 2 : 3);
 
     sortedHistory.forEach((c) => {
-
       // WICHTIG: Originalindex aus unsortierter History holen
       let originalIndex = originalHistory.indexOf(c);
 
@@ -4502,7 +4858,7 @@ function main_menu(player) {
     if (recommendedEntries.length > displayCount) {
       form.button("Show more!");
       actions.push(() => {
-        visual_command(player); // oder die passende Funktion
+        visual_command_overview(player, recommendedEntries) // oder die passende Funktion
       });
     }
   }
@@ -4548,7 +4904,6 @@ function main_menu(player) {
 -------------------------*/
 
 function command_history_menu(player) {
-
   let saveData = load_save_data();
   let playerIndex = saveData.findIndex(entry => entry.id === player.id);
 
@@ -4556,7 +4911,10 @@ function command_history_menu(player) {
   const originalHistory = saveData[playerIndex].command_history
 
   // Sortierte Kopie (originalHistory bleibt unverändert)
-  let sortedHistory = [...originalHistory].sort((a, b) => b.unix - a.unix);
+  let sortedHistory = [...originalHistory]
+  .filter(entry => entry.hidden !== true)
+  .sort((a, b) => b.unix - a.unix);
+
 
   const now = Math.floor(Date.now() / 1000);
   const utcSet = Boolean(saveData[0]?.utc);
@@ -4671,12 +5029,18 @@ function command_history_menu(player) {
     f.body("Select a command!");
     const pageActions = [];
 
-    if (!utcSet && originalHistory.length > 9 && player.playerPermissionLevel === 2 && pageIndex === 0)
-      f.label("§7Confusing? Set your time zone in the settings!");
+    if (!utcSet && originalHistory.length > 9 && player.playerPermissionLevel === 2 && pageIndex === 0) {
+      f.label("§7Confusing? Enter your time zone!");
+      f.button("Time zone", "textures/ui/world_glyph_color_2x");
+      pageActions.push(() => settings_time_zone(player, 0));
+      f.divider();
+    }
+
 
     // gleiche Gruppierungslogik wie vorher, aber nur für diese Seite
     let lastGroup = null;
     page.forEach(entry => {
+
       const diffSec = now - entry.unix;
       const { group, label: baseLabel } = determineGroupLabel(entry.unix);
 
@@ -4777,7 +5141,7 @@ function command_menu(player, command, history_index) {
     form.label("Previous Result:");
     form.label(history_data.successful ? "§2Command executed successfully§r" : "§cCommand failed to execute§r");
     form.label(save_data[0].utc === undefined ? "§7§oTime: " + getRelativeTime(Math.floor(Date.now() / 1000) - history_data.unix, player) + " ago" : "§7§oDate: " + `${build_date.day}.${build_date.month}.${build_date.year}`);
-    form.toggle("Delete from history", {tooltip: "If enabled, this command will be removed from your history after submitting the form."});
+    form.toggle((version_info.release_type == 0? "Hide from history" : "Delete from history"), {tooltip: "If enabled, this command will be removed from your history after submitting the form.", defaultValue: history_data.hidden === true});
   } else {
     form.toggle("Pin to Main Menu", {tooltip: "If enabled, this command will be added to your main menu for quick access."});
   }
@@ -4793,7 +5157,7 @@ function command_menu(player, command, history_index) {
 
     if (typeof(history_index) === "number" && deleteToggle) {
       // Entferne den Eintrag aus der command_history
-      save_data[player_sd_index].command_history.splice(history_index, 1);
+      save_data[player_sd_index].command_history[history_index].hidden = true;
       update_save_data(save_data);
     }
 
@@ -4862,7 +5226,8 @@ async function execute_command(source, cmd, target = "server") {
     save_data[player_sd_index].command_history.push({
       command: cmd,
       successful: false,
-      unix: Math.floor(Date.now() / 1000)
+      unix: Math.floor(Date.now() / 1000),
+      hidden: false
     });
     update_save_data(save_data);
 
@@ -4883,7 +5248,7 @@ async function execute_command(source, cmd, target = "server") {
     }
   }
 
-  if (matchedBlock && matchedBlock.rating > 0 && world.isHardcore) {
+  if (matchedBlock && matchedBlock.rating > 0 && matchedBlock.relevent(world)) {
     can_run = await new Promise(resolve => {
       let form = new MessageFormData();
       let actions = [];
@@ -4891,9 +5256,9 @@ async function execute_command(source, cmd, target = "server") {
       form.title("Warning");
       form.body(
         matchedBlock.rating === 1
-          ? `The §l/${matchedBlock.command_prefix}§r command behaves differently than expected in §chardcore mode§r.\n\nDo you want to run it anyways?`
+          ? `The §l/${matchedBlock.command_prefix}§r command behaves §ldifferently than expected§r.\n\nDo you want to run it anyways?`
           : matchedBlock.rating === 2
-            ? `The /${matchedBlock.command_prefix}§r command will most likely §4§llose your hardcore world!§r\n\nDo you really want that?`
+            ? `The /${matchedBlock.command_prefix}§r command will most likely §4§lmodify your world in an unrecoverable way!§r\n\nDo you really want that?`
             : ""
       );
 
@@ -4902,8 +5267,8 @@ async function execute_command(source, cmd, target = "server") {
         actions.push(() => resolve(true));  // Spieler bestätigt
       }
 
-      form.button2(""); // Cancel
-      actions.push(() => resolve(false)); // Spieler bricht ab
+      form.button2("");
+      actions.push(() => resolve(false));
 
       form.show(source).then((response_2) => {
         if (response_2.selection === undefined) return -1;
@@ -4911,8 +5276,9 @@ async function execute_command(source, cmd, target = "server") {
       });
     });
 
-    if (!can_run) return command_menu(source, cmd); // Abbrechen, falls Spieler nein sagt
+    if (!can_run) return command_menu(source, cmd);
   }
+
 
   try {
     let result = target === "server"
@@ -4930,7 +5296,8 @@ async function execute_command(source, cmd, target = "server") {
       save_data[player_sd_index].command_history.push({
         command: cmd,
         successful: success,
-        unix: Math.floor(Date.now() / 1000)
+        unix: Math.floor(Date.now() / 1000),
+        hidden: false
       });
     }
 
@@ -4952,7 +5319,8 @@ async function execute_command(source, cmd, target = "server") {
       save_data[player_sd_index].command_history.push({
         command: cmd,
         successful: false,
-        unix: Math.floor(Date.now() / 1000)
+        unix: Math.floor(Date.now() / 1000),
+        hidden: false
       });
     }
 
@@ -4980,27 +5348,28 @@ function command_menu_result_e(player, message, command, show_suggestion = true)
     form.label("Did you mean:\n§a§o§7" + suggestion.command);
   }
 
+  form.divider();
+
   if (suggestion && suggestion.fix_available) {
-    form.divider();
     form.button("Use suggestion");
     actions.push(() => {
       execute_command(player, suggestion.command, player);
     });
   }
 
-  if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined) {
+  if (suggestion && suggestion.fix_available && suggestion.vc_hiperlink !== undefined && suggestion.visible(player)) {
     form.button("Visual command");
     actions.push(() => {
       suggestion.vc_hiperlink(player);
       return -1; // Otherwise, the menu opens twice. I don't know
     });
-    form.divider();
   }
 
 
   form.button("Try again");
   actions.push(() => {
     command_menu(player, command);
+    form.divider();
   });
 
   form.button("");
@@ -5057,6 +5426,8 @@ function visual_command(player) {
       e.icon ? form.button(e.label, e.icon) : form.button(e.label);
       actions.push(e.actionFn);
     }
+    form.button("Show more!");
+    actions.push(() => visual_command_overview(player, recommendedEntries));
     form.divider();
   }
 
@@ -5067,13 +5438,15 @@ function visual_command(player) {
       e.icon ? form.button(e.label, e.icon) : form.button(e.label);
       actions.push(e.actionFn);
     }
+    form.button("Show more!");
+    actions.push(() => visual_command_overview(player, optimizedEntries));
     form.divider();
   }
 
   // --- Show all commands ---
   if (allEntries.length > 0) {
     form.button("Show all commands", "textures/ui/more-dots");
-    actions.push(() => visual_command_unsupported(player, allEntries));
+    actions.push(() => visual_command_overview(player, allEntries));
   }
 
   // --- Back button ---
@@ -5088,25 +5461,70 @@ function visual_command(player) {
   });
 }
 
-function visual_command_unsupported(player, allEntries) {
+function visual_command_overview(player, entries) {
   let form = new ActionFormData();
   let actions = [];
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-  form.title("All Commands");
+  form.title("More Commands");
   form.body("Select a command!");
 
-  // --- Formular befüllen ---
-  if (allEntries.length > 0) {
-    for (const e of allEntries) {
-      e.icon ? form.button(e.label, e.icon) : form.button(e.label, "textures/ui/chat_send");
+  // Hilfsfunktion: erstes sichtbares Zeichen normalisieren und Gruppe bestimmen
+  function getGroupLetter(text) {
+    if (!text) return '#';
+    // Trim left to ignore führende Leerzeichen
+    const trimmed = text.trimLeft();
+    if (trimmed.length === 0) return '#';
+    let ch = trimmed[0];
+
+    // Kleinschreibung für Vergleich
+    ch = ch.toLowerCase();
+
+    // A-Z ?
+    if (ch >= 'a' && ch <= 'z') {
+      return ch.toUpperCase(); // A..Z
+    }
+
+    // Alles andere -> '#'
+    return '#';
+  }
+
+  // Gruppen zusammenstellen (Erhalt der Reihenfolge innerhalb jeder Gruppe)
+  const groups = {};
+  for (const e of entries) {
+    const labelText = typeof e.label === 'string' ? e.label : '';
+    const g = getGroupLetter(labelText);
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(e);
+  }
+
+  // Reihenfolge: A..Z, danach '#' (falls vorhanden)
+  for (let i = 0; i < 26; i++) {
+    const letter = String.fromCharCode(65 + i); // 'A'..'Z'
+    if (groups[letter] && groups[letter].length > 0) {
+      form.label(letter);
+      for (const e of groups[letter]) {
+        if (e.icon) form.button(e.label, e.icon);
+        else form.button(e.label, "textures/ui/chat_send");
+        actions.push(e.actionFn);
+      }
+      form.divider(); // optional: Trennung zwischen Buchstabenblöcken
+    }
+  }
+
+  // '#' Gruppe (nicht A-Z oder nicht erkannte Zeichen)
+  if (groups['#'] && groups['#'].length > 0) {
+    form.label('#');
+    for (const e of groups['#']) {
+      if (e.icon) form.button(e.label, e.icon);
+      else form.button(e.label, "textures/ui/chat_send");
       actions.push(e.actionFn);
     }
     form.divider();
   }
 
-  // Zurück-Button
+  // Zurück-Button (ohne spezielles Label)
   form.button("");
   actions.push(() => visual_command(player));
 
@@ -5121,6 +5539,8 @@ function visual_command_unsupported(player, allEntries) {
     }
   });
 }
+
+
 
 /*------------------------
  chain commands
@@ -6980,13 +7400,62 @@ function dictionary_contact(player) {
  Debug
 -------------------------*/
 
+function debug_storage() {
+    const MAX = 32767;
+
+    // ---------- Hilfsfunktion: automatische Einheit ----------
+    function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} Bytes`;
+        if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(2)} KB`;
+        if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(2)} MB`;
+        return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+    }
+
+    // ---------- Save-System ----------
+    const saveSize = world.getDynamicPropertyTotalByteCount();
+
+    let chunkCount = 0;
+    let maxChunkSize = 0;
+
+    while (true) {
+      const part = world.getDynamicProperty(`${BASE_KEY}_${chunkCount}`);
+      if (part === undefined || part === null) break;
+      const size = part.length;
+      if (size > maxChunkSize) maxChunkSize = size;
+      chunkCount++;
+    }
+
+    // ---------- Chunk-Auslastung ----------
+    let lastChunk = world.getDynamicProperty(`${BASE_KEY}_${chunkCount - 1}`) || "";
+
+    const used = lastChunk.length;
+    const free = Math.max(0, MAX - used);
+    const percent = Math.floor((used / MAX) * 100);
+
+    let status = "§aOK";
+    if (percent >= 90) status = "§cCRITICAL";
+    else if (percent >= 75) status = "§6HIGH";
+    else if (percent >= 50) status = "§eMEDIUM";
+
+    // ---------- Ausgabe ----------
+    return (
+        `§lChunk ${chunkCount}§r§f\n` +
+        `Used: ${formatBytes(used)} / ${formatBytes(MAX)} (${percent} Percent)\n` +
+        `Free: ${formatBytes(free)}\n` +
+        `Status: ${status}§r\n\n` +
+        `§lSave-System§r§f\n` +
+        `Chunks: ${chunkCount}\n` +
+        `DynamicProperty Size: ${formatBytes(saveSize)}`
+    );
+}
+
 function debug_main(player) {
   let form = new ActionFormData()
   let actions = []
   let save_data = load_save_data()
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
-  form.body("DynamicPropertyTotalByteCount: "+world.getDynamicPropertyTotalByteCount() +" of 32767 bytes used ("+Math.floor((world.getDynamicPropertyTotalByteCount()/32767)*100) +" Procent)")
+  form.body(debug_storage());
 
 
   form.button("§e\"save_data\" Editor");
@@ -6996,7 +7465,7 @@ function debug_main(player) {
 
   form.button("§cRemove \"save_data\"");
   actions.push(() => {
-    world.setDynamicProperty("com2hard:save_data", undefined);
+    delete_save_data();
     return close_world()
   });
 
@@ -7011,18 +7480,30 @@ function debug_main(player) {
     return test_fix(player)
   })
 
-  form.button("Test history");
+  form.button("§cClear history");
   actions.push(() => {
-    save_data[player_sd_index].command_history = command_list.map(cmd => ({
-      unix: Math.floor(Date.now() / 1000),
-      command: "/" + cmd.name,
-      success: true
-    }));
+    save_data[player_sd_index].command_history = [];
 
     update_save_data(save_data);
-    return main_menu(player);
-
+    return debug_main(player);
   })
+
+  form.button("Test history");
+  actions.push(() => {
+    command_list.forEach(cmd => {
+      save_data[player_sd_index].command_history.push({
+        unix: Math.floor(Date.now() / 1000),
+        command: "/" + cmd.name,
+        successful: true,
+        hidden: false
+      });
+    });
+
+
+    update_save_data(save_data);
+    return debug_main(player);
+  });
+
 
   form.divider()
   form.button("");
